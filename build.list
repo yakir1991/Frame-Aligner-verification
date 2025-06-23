@@ -5,6 +5,7 @@ driver.sv
 monitor_in.sv
 monitor_out.sv
 scoreboard.sv
+frame_aligner_model.sv
 environment.sv
 random_test.sv
 testbench.sv

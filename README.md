@@ -15,6 +15,7 @@ This repository contains a SystemVerilog verification environment for a simple f
 - `generator.sv` – Generates stimulus for a variety of valid and invalid frame sequences.
 - `assertions.sv` – Simple assertions used during simulation.
 - `build.list` – Compilation order of all source files.
+- `frame_aligner_model.sv` – SystemVerilog reference model mirroring the DUT behaviour.
 
 ## Running the Simulation
 1. Compile all files listed in `build.list` with your preferred SystemVerilog simulator (e.g. VCS, Questa).
