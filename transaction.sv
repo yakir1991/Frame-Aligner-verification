@@ -62,4 +62,13 @@ class transaction;
     end
   endfunction
 
+  // Helper function to convert header_type enum to a readable string
+  function string header_type_to_string(header_type_t t);
+    case (t)
+      HEAD_1:  header_type_to_string = "HEAD_1";
+      HEAD_2:  header_type_to_string = "HEAD_2";
+      default: header_type_to_string = "ILLEGAL";
+    endcase
+  endfunction
+
 endclass
