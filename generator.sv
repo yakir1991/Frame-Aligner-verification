@@ -161,10 +161,8 @@ class generator;
           end
           // Display the generated transaction
           $display("[ --Generator-- ] Generated Transaction:");
-          $display("  Header Type    : %s", 
-                  (trans.header_type == transaction::HEAD_1) ? "HEAD_1" :
-                  (trans.header_type == transaction::HEAD_2) ? "HEAD_2" :
-                  "ILLEGAL");
+          $display("  Header Type    : %s",
+                  trans.header_type_to_string(trans.header_type));
           $display("  Payload Size   : %0d bytes", trans.payload.size());
           $display("  Frame Size     : %0d bytes", trans.frame.size());
           $display("  Frame Data     : {");

@@ -125,6 +125,25 @@ class scoreboard;
     combin_all = new();
   endfunction
 
+  // Helper: check if current byte is a valid header LSB
+  function bit is_valid_header_lsb(bit [7:0] data);
+    return (data == 8'hAA) || (data == 8'h55);
+  endfunction
+
+  // Helper: compute expected header MSB based on previously sampled LSB
+  function bit [7:0] get_expected_header_msb(bit [7:0] lsb);
+    case (lsb)
+      8'hAA: get_expected_header_msb = 8'hAF;
+      8'h55: get_expected_header_msb = 8'hBA;
+      default: get_expected_header_msb = 8'h00;
+    endcase
+  endfunction
+
+  // Helper: check if the current byte matches the expected header MSB
+  function bit is_valid_header_msb(bit [7:0] lsb, bit [7:0] data);
+    return (get_expected_header_msb(lsb) == data);
+  endfunction
+
   // Main task
   task main;
     transaction trans_in;
@@ -172,18 +191,10 @@ class scoreboard;
     legal_frame_counter_rst = 1'b0;
     legal_frame_counter_inc = 1'b0;
 
-    // Define header validity
-    header_lsb_valid = (rx_data_in == 8'hAA) || (rx_data_in == 8'h55);
-
-    // Compute expected header MSB based on sampled LSB
-    if (header_lsb_samp == 8'hAA)
-      expected_header_msb = 8'hAF;
-    else if (header_lsb_samp == 8'h55)
-      expected_header_msb = 8'hBA;
-    else
-      expected_header_msb = 8'h00; // Illegal value
-
-    header_msb_valid = (expected_header_msb == rx_data_in);
+    // Define header validity using helper functions
+    header_lsb_valid   = is_valid_header_lsb(rx_data_in);
+    expected_header_msb = get_expected_header_msb(header_lsb_samp);
+    header_msb_valid   = is_valid_header_msb(header_lsb_samp, rx_data_in);
 
     // FSM logic
     case (current_state)
