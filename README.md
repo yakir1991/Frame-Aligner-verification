@@ -1,21 +1,25 @@
-Frame Aligner verification 
-Introduction
-The Frame Aligner is a component in serial communication systems. Its role is to detect and synchronize incoming data frames by identifying specific header patterns. The aligner ensures that data is received correctly and enables proper processing of the information.
+# Frame Aligner Verification
 
-Behavior Description of the Aligner
-Receives an 8-bit serial data stream and searches for specific header patterns.
-After detecting a valid header, collects the frame's payload.
-Provides a synchronization signal through the frame detection signal.
-Enters synchronization mode after correctly identifying 3 frames.
-Exits synchronization mode after counting 48 bytes without detecting a valid header.
-Valid Frame: 16-bit header and 80-bit payload (10 bytes).
-Possible Header Patterns:
-- Header Type 1 (HEAD_1) LSB = 0xAA, MSB = 0xAF
-- Header Type 2 (HEAD_2) LSB = 0x55, MSB = 0xBA
+This repository contains a SystemVerilog verification environment for a simple frame aligner module. The aligner scans an incoming serial stream for predefined headers and asserts synchronization once valid frames are detected.
 
-Assumptions
-Data Rate: The data is received at a rate of one byte per clock.
-Known Header Patterns: The only possible headers are AFAA or BA55.
-Valid Frame Length: Consists of 12 bytes (2 bytes for the header and 10 bytes for the payload).
-Data Continuity: No interruptions or data loss in the incoming stream
-Invalid Frame: Comprises a random number of bytes (2 bytes for the header + a random number of payload bytes).
+## Features
+- Detects two valid header patterns (`AAAF` and `55BA`).
+- Collects 10 bytes of payload after a valid header.
+- Reports frame alignment after three consecutive valid frames.
+- Resets synchronization if 48 bytes are received without a valid header.
+
+## Repository Layout
+- `dut.sv` – RTL implementation of the frame aligner.
+- `testbench.sv` – Top-level testbench connecting all verification components.
+- `environment.sv`, `driver.sv`, `monitor_in.sv`, `monitor_out.sv`, `scoreboard.sv` – UVM‑like components implementing the test environment.
+- `generator.sv` – Generates stimulus for a variety of valid and invalid frame sequences.
+- `assertions.sv` – Simple assertions used during simulation.
+- `build.list` – Compilation order of all source files.
+
+## Running the Simulation
+1. Compile all files listed in `build.list` with your preferred SystemVerilog simulator (e.g. VCS, Questa).
+2. Run `testbench` to execute the random and directed test cases from the generator.
+3. At the end of the run the scoreboard prints the number of detected errors.
+
+## License
+This project is provided for educational purposes and carries no specific license.

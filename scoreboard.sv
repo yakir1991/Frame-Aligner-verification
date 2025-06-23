@@ -65,7 +65,7 @@ class scoreboard;
       bins all_values[] = {[8'h00:8'hFF]};
     }
 
-    rx_data_heders_cp : coverpoint rx_data_in {
+    rx_data_headers_cp : coverpoint rx_data_in {
     bins header1_lsb = {8'hAA};
     bins header2_lsb = {8'h55};
     bins header1_msb = {8'hAF};
@@ -73,7 +73,7 @@ class scoreboard;
     bins non_header = default; 
   }
 
-    prev_rx_data_in_heders_cp : coverpoint prev_rx_data_in {
+    prev_rx_data_in_headers_cp : coverpoint prev_rx_data_in {
     bins header1_lsb = {8'hAA};
     bins header2_lsb = {8'h55};
     bins header1_msb = {8'hAF};
@@ -81,8 +81,8 @@ class scoreboard;
     bins non_header = default; 
   }
     
-    cross_headers_frame_detect_na_byte_counter : cross rx_data_heders_cp, prev_rx_data_in_heders_cp, frame_detect_cp,exp_na_byte_counter;
-    cross_headers_frame_detect_fr_byte_position : cross rx_data_heders_cp, prev_rx_data_in_heders_cp, frame_detect_cp,fr_byte_position_cp;
+    cross_headers_frame_detect_na_byte_counter : cross rx_data_headers_cp, prev_rx_data_in_headers_cp, frame_detect_cp,exp_na_byte_counter;
+    cross_headers_frame_detect_fr_byte_position : cross rx_data_headers_cp, prev_rx_data_in_headers_cp, frame_detect_cp,fr_byte_position_cp;
     cross_frame_detect_rx_data : cross frame_detect_cp, rx_data_cp;
     cross_frame_detect_fr_byte_position : cross frame_detect_cp, fr_byte_position_cp;
     cross_frame_detect_na_byte_position : cross frame_detect_cp, exp_na_byte_counter;
