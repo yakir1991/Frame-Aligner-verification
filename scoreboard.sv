@@ -1,14 +1,17 @@
-//The scoreboard is the core checker in the verification environment, implementing a detailed FSM to track expected
-// frame states and positions. By comparing actual DUT outputs with expected values and logging errors, it ensures that
-// the DUT operates correctly. Additionally, it gathers coverage data, providing insights into the test completeness across
-// various scenarios and states. This setup allows for thorough validation of the DUT's functionality, error resilience,
-// and performance under different input conditions.
+// The scoreboard is the core checker in the verification environment.
+// It uses the frame_aligner_model reference model to predict the expected
+// frame byte position and frame detection signals, then compares them with
+// the DUT outputs. Additional coverage data is gathered to measure test
+// completeness across various scenarios.
 
 class scoreboard;
 
   // Mailbox handles
   mailbox mon2scbin;
   mailbox mon2scbout;
+
+  // Reference model instance
+  frame_aligner_model model;
 
   // Transaction variables
   bit [7:0] rx_data_in;
@@ -21,20 +24,11 @@ class scoreboard;
   bit exp_frame_detect;
   bit [3:0] exp_legal_frame_counter;
   bit [5:0] exp_na_byte_counter;
-  bit [5:0] next_exp_na_byte_counter; // Intermediate variable for one clock cycle delay
-  bit [7:0] header_lsb_samp;
 
   // Error counter
   int num_errors; 
 
-  // FSM states
-  typedef enum logic [1:0] {IDLE, HLSB, HMSB, DATA} state_t;
-  state_t current_state, next_state;
 
-  // Control signals
-  bit fr_byte_position_rst;
-  bit na_byte_count_inc, na_byte_count_rst;
-  bit legal_frame_counter_rst, legal_frame_counter_inc;
 
   // ** Coverage variables **
   bit [3:0] legal_frame_counter_cov;
@@ -102,20 +96,17 @@ class scoreboard;
     this.mon2scbin = mon2scbin;
     this.mon2scbout = mon2scbout;
 
+    // Create reference model
+    model = new();
+
     // Initialize expected values
     exp_fr_byte_position = 4'h0;
     exp_frame_detect = 1'b0;
     exp_legal_frame_counter = 2'h0;
     exp_na_byte_counter = 6'h0;
-    next_exp_na_byte_counter = 6'h0;
-    header_lsb_samp = 8'h00;
 
     // Initialize error counter
     num_errors = 0;
-
-    // Initialize FSM state
-    current_state = IDLE;
-    next_state = IDLE;
 
     // ** Initialize coverage variables **
     legal_frame_counter_cov = 2'b0;
@@ -159,11 +150,13 @@ class scoreboard;
       fr_byte_position_out = trans_out.fr_byte_position;
       frame_detect_out = trans_out.frame_detect;
 
-      // Process the FSM
-      process_fsm();
+      // Step the reference model to compute expected outputs
+      model.step(rx_data_in, 0, exp_fr_byte_position, exp_frame_detect);
 
-      // Update exp_na_byte_counter with next_exp_na_byte_counter (introduce one cycle delay)
-      exp_na_byte_counter = next_exp_na_byte_counter;
+      // Get additional counters from the model
+      exp_na_byte_counter      = model.na_byte_counter[5:0];
+      exp_legal_frame_counter  = model.legal_frame_counter[3:0];
+      legal_frame_counter_cov  = model.legal_frame_counter[3:0];
 
       // Compare expected and actual outputs
       compare_outputs();
@@ -171,127 +164,12 @@ class scoreboard;
       // ** Sample coverage **
       sample_coverage();
 
-      // Update current state
-      current_state = next_state;
+
 
     end
   endtask
 
-  // FSM processing
-  task process_fsm;
-    // **Declare local variables at the beginning**
-    bit header_lsb_valid;
-    bit header_msb_valid;
-    bit [7:0] expected_header_msb;
-
-    // Default control signals
-    fr_byte_position_rst = 1'b0;
-    na_byte_count_inc = 1'b0;
-    na_byte_count_rst = 1'b0;
-    legal_frame_counter_rst = 1'b0;
-    legal_frame_counter_inc = 1'b0;
-
-    // Define header validity using helper functions
-    header_lsb_valid   = is_valid_header_lsb(rx_data_in);
-    expected_header_msb = get_expected_header_msb(header_lsb_samp);
-    header_msb_valid   = is_valid_header_msb(header_lsb_samp, rx_data_in);
-
-    // FSM logic
-    case (current_state)
-      IDLE: begin
-        if (header_lsb_valid) begin
-          fr_byte_position_rst = 1'b1;
-          na_byte_count_inc = 1'b1;
-          next_state = HLSB;
-          header_lsb_samp = rx_data_in; // Sample LSB
-          $display("[Scoreboard] State: IDLE -> HLSB, header_lsb_samp: 0x%0h", header_lsb_samp);
-        end else begin
-          legal_frame_counter_rst = 1'b1;
-          fr_byte_position_rst = 1'b1;
-          na_byte_count_inc = 1'b1;
-          next_state = IDLE;
-          $display("[Scoreboard] State: IDLE remains, invalid LSB received: 0x%0h", rx_data_in);
-        end
-      end
-      HLSB: begin
-        if (header_msb_valid) begin
-          next_state = HMSB;
-          $display("[Scoreboard] State: HLSB -> HMSB, valid MSB received: 0x%0h", rx_data_in);
-        end else begin
-          legal_frame_counter_rst = 1'b1;
-          na_byte_count_inc = 1'b1;
-          // fr_byte_position_rst = 1'b1;  // Reset byte position if MSB invalid -- No need, as the reset is performed on the next clock cycle.
-          next_state = IDLE;
-          $display("[Scoreboard] State: HLSB -> IDLE, invalid MSB received: 0x%0h", rx_data_in);
-        end
-      end
-      HMSB: begin
-        legal_frame_counter_inc = 1'b1; // included it here to delay by one clock cycle.
-        next_state = DATA;
-        $display("[Scoreboard] State: HMSB -> DATA");
-      end
-      DATA: begin
-        if (exp_fr_byte_position == 4'd10) begin
-          na_byte_count_rst = 1'b1;
-          next_state = IDLE;
-          $display("[Scoreboard] State: DATA -> IDLE, reached fr_byte_position 10");
-        end else begin
-          next_state = DATA;
-          $display("[Scoreboard] State: DATA remains, fr_byte_position: %0d", exp_fr_byte_position);
-        end
-      end
-      default: begin
-        next_state = IDLE;
-      end
-    endcase
-
-    // Update expected counters based on control signals
-    update_expected_counters();
-  endtask
-
-  // Update expected counters
-  task update_expected_counters;
-    // fr_byte_position
-    if (fr_byte_position_rst) begin
-      exp_fr_byte_position = 4'h0;
-    end else if (current_state == DATA || current_state == HMSB || current_state == HLSB) begin
-      exp_fr_byte_position += 1'b1;
-    end
-
-    // legal_frame_counter
-    if (legal_frame_counter_rst) begin
-      exp_legal_frame_counter = 2'h0;
-      legal_frame_counter_cov = 2'h0;
-    end else if (legal_frame_counter_inc) begin
-      exp_legal_frame_counter += 1'b1;
-      legal_frame_counter_cov += 1'b1;
-    end
-
-    // na_byte_counter
-    if (na_byte_count_rst) begin
-      exp_na_byte_counter = 6'h0;
-      next_exp_na_byte_counter = 6'h0;
-    end else if (na_byte_count_inc) begin
-      if (exp_na_byte_counter < 6'd47) begin
-        next_exp_na_byte_counter = exp_na_byte_counter + 1'b1;
-      end else begin
-        next_exp_na_byte_counter = exp_na_byte_counter; 
-      end
-    end else begin
-      next_exp_na_byte_counter = exp_na_byte_counter;
-    end
-
-    // frame_detect
-    if (exp_legal_frame_counter == 2'h3) begin
-      exp_frame_detect = 1'b1;
-      exp_legal_frame_counter = 2'h0; // Reset after setting frame_detect
-      $display("[Scoreboard] frame_detect set to 1 after 3 legal frames");
-    end else if (exp_na_byte_counter == 6'd47) begin
-      exp_frame_detect = 1'b0;
-      next_exp_na_byte_counter = 6'h0; // Reset after clearing frame_detect
-      $display("[Scoreboard] frame_detect cleared to 0 after 47 bytes without header ");
-    end
-  endtask
+  // Old FSM-based model kept for reference
 
   // Compare outputs
   task compare_outputs;
