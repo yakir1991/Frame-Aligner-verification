@@ -89,10 +89,10 @@ class scoreboard;
     cross_legal_frame_counter_na_byte_position : cross exp_na_byte_counter, legal_frame_counter_cp;
     cross_fr_byte_position_legal_frame_counter : cross fr_byte_position_cp, legal_frame_counter_cp;
 
-    // not working
-    cross_frame_detect_legal_frame_counter : cross frame_detect_cp, legal_frame_counter_cp { 
+    cross_frame_detect_legal_frame_counter : cross frame_detect_cp, legal_frame_counter_cp {
       ignore_bins unwanted_combination = binsof(frame_detect_cp) intersect {1} &&
-                                         (binsof(legal_frame_counter_cp.three_frames) || binsof(legal_frame_counter_cp.above_three_frame)); // Why is this still appearing ?
+                                         (binsof(legal_frame_counter_cp.three_frames) ||
+                                          binsof(legal_frame_counter_cp.above_three_frame));
     }
     
   endgroup
