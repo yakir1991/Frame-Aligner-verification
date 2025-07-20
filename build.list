@@ -8,7 +8,7 @@ scoreboard.sv
 frame_aligner_model.sv
 environment.sv
 random_test.sv
+assertions.sv
 testbench.sv
 dut.sv
-assertions.sv
 
