@@ -51,8 +51,12 @@ class transaction;
         frame[1] = 8'hBA; // MSB
       end
       ILLEGAL: begin
-        frame[0] = $urandom_range(8'h00, 8'hFF); // Random LSB
-        frame[1] = $urandom_range(8'h00, 8'hFF); // Random MSB
+        // Randomize header bytes but ensure we never generate a valid header
+        do begin
+          frame[0] = $urandom_range(8'h00, 8'hFF); // Random LSB
+          frame[1] = $urandom_range(8'h00, 8'hFF); // Random MSB
+        end while ((frame[0] == 8'hAA && frame[1] == 8'hAF) ||
+                   (frame[0] == 8'h55 && frame[1] == 8'hBA));
       end
     endcase
 
