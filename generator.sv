@@ -90,6 +90,8 @@ class generator;
 
     // Decide how many random transactions to generate
     num_random_transactions = repeat_count - test_queue.size();
+    if (num_random_transactions < 0)
+      num_random_transactions = 0;
 
     // Add random transactions
     repeat (num_random_transactions) begin
