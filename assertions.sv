@@ -53,8 +53,8 @@ module frame_assertions(
     property check_fr_byte_position_reset_on_header;
         @(posedge clk)
         disable iff (reset)
-        ((rx_data == 8'haa) || (rx_data == 8'h55)) |=> 
-        ##2 (fr_byte_position == 4'd0);
+        ((rx_data == 8'haa) || (rx_data == 8'h55)) |=>
+        ##1 (fr_byte_position == 4'd0);
     endproperty
 
     // Ensure fr_byte_position increments by 1 after each valid header sequence
