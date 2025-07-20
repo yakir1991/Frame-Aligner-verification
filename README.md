@@ -22,5 +22,4 @@ This repository contains a SystemVerilog verification environment for a simple f
 2. Run `testbench` to execute the random and directed test cases from the generator.
 3. At the end of the run the scoreboard prints the number of detected errors.
 
-## License
-This project is provided for educational purposes and carries no specific license.
+This project is licensed under the MIT License. See the LICENSE file for details.
