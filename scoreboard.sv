@@ -22,7 +22,7 @@ class scoreboard;
   // Expected values
   bit [3:0] exp_fr_byte_position;
   bit exp_frame_detect;
-  bit [3:0] exp_legal_frame_counter;
+  bit [1:0] exp_legal_frame_counter;
   bit [5:0] exp_na_byte_counter;
 
   // Error counter
@@ -31,7 +31,7 @@ class scoreboard;
 
 
   // ** Coverage variables **
-  bit [3:0] legal_frame_counter_cov;
+  bit [1:0] legal_frame_counter_cov;
 
 
   // cover code??
@@ -160,8 +160,8 @@ class scoreboard;
 
       // Get additional counters from the model
       exp_na_byte_counter      = model.na_byte_counter[5:0];
-      exp_legal_frame_counter  = model.legal_frame_counter[3:0];
-      legal_frame_counter_cov  = model.legal_frame_counter[3:0];
+      exp_legal_frame_counter  = model.legal_frame_counter[1:0];
+      legal_frame_counter_cov  = model.legal_frame_counter[1:0];
 
       // Compare expected and actual outputs
       compare_outputs();
