@@ -3,6 +3,7 @@
 `include "test_5_head2.sv"
 `include "test_45_bytes.sv"
 `include "test_47_bytes.sv"
+`include "test_48_bytes.sv"
 `include "test_46_bytes.sv"
 `include "test_illegal_headers_with_a_valid_header_in_the_middle_frame.sv"
 `include "test_3_random_valid_headers.sv"
@@ -46,6 +47,7 @@ class generator;
     TEST_5_HEAD2,
     TEST_ILLEGAL_HEADERS_WITH_A_VALID_HEADER_IN_THE_MIDDLE_FRAME,
     TEST_47_BYTES,
+    TEST_48_BYTES,
     TEST_46_BYTES,
     TEST_ILLEGAL_HEADERS_WITH_A_VALID_HEADER_IN_THE_MIDDLE_FRAME_10_CLOCK,
     TEST_3_RANDOM_VALID_HEADERS,
@@ -75,15 +77,15 @@ class generator;
     total_transactions_sent = 0; 
 
 
-    // Add each test ID 3 times (for tests 0 to 14)
-    for (int i = 0; i <= 14; i++) begin // total 15 tests
+    // Add each test ID 3 times (for tests 0 to 15)
+    for (int i = 0; i <= 15; i++) begin // total 16 tests
       test_id_t test_id = test_id_t'(i); // cast integer to enum
       repeat (3) begin
         test_queue.push_back(test_id);
       end
     end
 
-    // Add the specific test 30 times (test ID 15)
+    // Add the specific test 30 times (test ID 16)
     repeat (30) begin
       test_queue.push_back(TEST_ILLEGAL_HEADERS_WITH_A_VALID_HEADER_IN_THE_MIDDLE_FRAME_RANDOM);
     end
@@ -121,6 +123,9 @@ class generator;
         end
         TEST_47_BYTES: begin
           test_47_bytes(gen2drv, total_transactions_sent);
+        end
+        TEST_48_BYTES: begin
+          test_48_bytes(gen2drv, total_transactions_sent);
         end
         TEST_46_BYTES: begin
           test_46_bytes(gen2drv, total_transactions_sent);
