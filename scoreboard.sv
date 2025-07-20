@@ -81,12 +81,12 @@ class scoreboard;
     bins non_header = default; 
   }
     
-    cross_headers_frame_detect_na_byte_counter : cross rx_data_headers_cp, prev_rx_data_in_headers_cp, frame_detect_cp,exp_na_byte_counter;
+    cross_headers_frame_detect_na_byte_counter : cross rx_data_headers_cp, prev_rx_data_in_headers_cp, frame_detect_cp, na_byte_position;
     cross_headers_frame_detect_fr_byte_position : cross rx_data_headers_cp, prev_rx_data_in_headers_cp, frame_detect_cp,fr_byte_position_cp;
     cross_frame_detect_rx_data : cross frame_detect_cp, rx_data_cp;
     cross_frame_detect_fr_byte_position : cross frame_detect_cp, fr_byte_position_cp;
-    cross_frame_detect_na_byte_position : cross frame_detect_cp, exp_na_byte_counter;
-    cross_legal_frame_counter_na_byte_position : cross exp_na_byte_counter, legal_frame_counter_cp;
+    cross_frame_detect_na_byte_position : cross frame_detect_cp, na_byte_position;
+    cross_legal_frame_counter_na_byte_position : cross na_byte_position, legal_frame_counter_cp;
     cross_fr_byte_position_legal_frame_counter : cross fr_byte_position_cp, legal_frame_counter_cp;
 
     cross_frame_detect_legal_frame_counter : cross frame_detect_cp, legal_frame_counter_cp {
