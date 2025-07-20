@@ -1,3 +1,5 @@
+// Test uses headers with all bits reversed to create invalid values
+
 task test_reversed_bit_headers(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
 

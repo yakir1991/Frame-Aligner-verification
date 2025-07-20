@@ -1,3 +1,5 @@
+// Test sends three frames with randomly chosen valid headers
+
 task test_3_random_valid_headers(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
   // Generate 3 transactions with random valid headers (HEAD_1 or HEAD_2)

@@ -1,3 +1,5 @@
+// Test fills payload with random header bytes between two invalid header bytes
+
 task test_illegal_headers_with_a_valid_header_in_the_middle_frame_random(mailbox gen2drv, ref int total_transactions_sent);
   // Define header values
   byte head1_lsb = 8'hAA;

@@ -1,3 +1,5 @@
+// Test combines random LSB/MSB bytes with a valid header sequence inside
+
 task test_msb_and_lsb_and_valid_header_in_middle_frame(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
 
