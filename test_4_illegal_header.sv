@@ -1,3 +1,5 @@
+// Test creates four illegal-header frames for robustness checking
+
 task test_4_illegal_header(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
   // generate 4 transactions with ILLEGAL header and random payload

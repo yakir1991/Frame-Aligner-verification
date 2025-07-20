@@ -1,3 +1,5 @@
+// Test has a 49-byte frame with header starting at byte 46
+
 task test_46_bytes(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
 

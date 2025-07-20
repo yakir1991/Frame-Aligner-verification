@@ -1,3 +1,5 @@
+// Test has illegal headers plus a valid one after ten extra bytes
+
 task test_illegal_headers_with_a_valid_header_in_the_middle_frame_10_clock(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
     trans = new();

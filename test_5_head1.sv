@@ -1,3 +1,5 @@
+// Test generates five frames with header type HEAD_1
+
 task test_5_head1(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
   // generate 5 transactions with HEAD_1 and random payload

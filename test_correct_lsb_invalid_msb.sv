@@ -1,3 +1,5 @@
+// Test uses a correct LSB but intentionally corrupts the MSB
+
 task test_correct_lsb_invalid_msb(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
 

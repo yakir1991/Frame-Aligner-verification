@@ -1,3 +1,5 @@
+// Test inserts three valid headers within an otherwise illegal frame
+
 task test_3_valid_frames_in_the_invalid_frame(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
 

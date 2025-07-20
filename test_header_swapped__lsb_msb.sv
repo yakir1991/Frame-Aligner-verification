@@ -1,3 +1,5 @@
+// Test swaps header bytes placing MSB before LSB
+
 task test_header_swapped__lsb_msb(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
 

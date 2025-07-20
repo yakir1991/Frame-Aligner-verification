@@ -1,3 +1,5 @@
+// Test mixes illegal headers with a valid one inside the frame
+
 task test_illegal_headers_with_a_valid_header_in_the_middle_frame(mailbox gen2drv, ref int total_transactions_sent);
   transaction trans;
     trans = new();
