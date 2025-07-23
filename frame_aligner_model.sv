@@ -1,5 +1,5 @@
 // Reference model of the frame aligner written entirely in SystemVerilog
-// This file replicates the behaviour of the previous Python model
+
 
 class frame_aligner_model;
 
