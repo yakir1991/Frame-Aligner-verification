@@ -137,9 +137,9 @@ class environment;
     for (int b = 0; b < FA_NUM_BUGS; b++)
       bugs = {bugs, fa_sel(b == 0, "", ","), $sformatf("DUT-%02d:%0d", b + 1, scb.n_known_by_bug[b])};
     // One machine-readable line for the regression script (sim/regress.py).
-    $display("FA_RESULT verdict=%s test=%s dut=%s model=%s compared=%0d known=%0d unexplained=%0d x=%0d cp_pass=%0d cp_fail=%0d sva_spec=%0d sva_wb=%0d sva_tb=%0d bugs=%s cov=%0.1f",
+    $display("FA_RESULT verdict=%s test=%s dut=%s model=%s compared=%0d known=%0d unexplained=%0d x=%0d reset_err=%0d cp_pass=%0d cp_fail=%0d sva_spec=%0d sva_wb=%0d sva_tb=%0d bugs=%s cov=%0.1f",
              fa_sel(pass, "PASS", "FAIL"), gen.test_name, dut_name, fa_sel(scb.primary_is_dut, "dut", "spec"),
-             scb.n_compared, scb.n_known, scb.n_unexplained, scb.n_x, cps.n_passed, cps.n_failed,
+             scb.n_compared, scb.n_known, scb.n_unexplained, scb.n_x, scb.n_reset_err, cps.n_passed, cps.n_failed,
              sva_spec, sva_wb, sva_tb, bugs, cov.total_percent());
     $display("===========================================================================");
     if (pass) $display(" TEST PASSED");

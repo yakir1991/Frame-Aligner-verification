@@ -544,14 +544,27 @@ class fa_sequence_lib;
     frame_checked(0, 1, 1, 1, 1, "following real frame is found again");
   endtask
 
-  // TP20 -- "consecutive": a single hunting byte between frames resets the count.
+  // TP20 -- "consecutive": a single hunting byte between frames resets the
+  // count (R4) -- whether it is an ordinary byte or a stray header LSB that
+  // is then rejected/restarted.  (The stray-LSB case was added after mutation
+  // testing showed that no scenario checked it: scripts/mutation_test.py M20.)
   task consecutive_rule();
+    byte unsigned stray[2] = '{HEAD1_LSB, HEAD2_LSB};
     start("consecutive_rule", "V, 1 byte gap, V, V -> not aligned; + V -> aligned");
     frame_checked(0, 1, 0, 0, 0, "frame 1");
     send(clean(1), "1-byte gap");
     frame_checked(0, 1, 0, 0, 0, "frame 2");
     frame_checked(0, 1, 0, 0, 0, "frame 3 (only 2 consecutive)");
     frame_checked(0, 1, 0, 1, 1, "frame 4 (3 consecutive)");
+    foreach (stray[k]) begin
+      start("consecutive_rule", $sformatf("V, V, stray %02h, V -> not aligned; + V, V -> aligned", stray[k]));
+      frame_checked(0, 1, 0, 0, 0, "frame 1");
+      frame_checked(0, 1, 0, 0, 0, "frame 2");
+      send(one(stray[k]), "stray header LSB between frames");
+      frame_checked(1 + k, 1, 0, 0, 0, "frame 3 after the stray LSB (chain restarted: 1)");
+      frame_checked(0, 1, 0, 0, 0, "frame 4 (2 consecutive)");
+      frame_checked(0, 1, 0, 1, 1, "frame 5 (3 consecutive)");
+    end
   endtask
 
   // TP21 -- a header split across two stimulus items is still a header.

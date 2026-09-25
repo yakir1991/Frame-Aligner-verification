@@ -78,7 +78,7 @@ MUTANTS = [
      "if (reset)                     fr_byte_position <= 4'h0;", "if (reset)                     fr_byte_position <= 4'h1;"),
     ("M18", "header_lsb_samp never updated after reset",
      "else if (header_lsb_valid) header_lsb_samp <= rx_data;", "else if (1'b0) header_lsb_samp <= rx_data;"),
-    ("M19", "FR_HMSB skipped (payload one byte short)",
+    ("M19", "FR_HMSB skipped (equivalent on the ports; FSM structure only)",
      "               legal_frame_counter_inc = 1'b1;\n               next_state              = FR_HMSB;",
      "               legal_frame_counter_inc = 1'b1;\n               next_state              = FR_DATA;"),
     ("M20", "restart does not reset the consecutive-frame counter",
@@ -114,7 +114,7 @@ def run_mutant(m, workroot):
             hits["SB"] += 1       # crash / hang counts as detected by the bench
             continue
         f = dict(kv.split("=", 1) for kv in r.group(1).split())
-        hits["SB"] += int(f["known"]) + int(f["unexplained"]) + int(f["x"])
+        hits["SB"] += int(f["known"]) + int(f["unexplained"]) + int(f["x"]) + int(f.get("reset_err", 0))
         hits["CP"] += int(f["cp_fail"])
         hits["SVA"] += int(f["sva_spec"])
         hits["WB"] += int(f["sva_wb"])
