@@ -2,7 +2,7 @@
 
 A SystemVerilog verification environment for a byte-stream **frame aligner**. The
 environment is checked against the specification, not against the RTL. It found
-**8 defects in the delivered design** (3 of them serious and previously unknown),
+**8 defects in the delivered design** (three of them critical or high severity; the system-level impact of the worst one was previously unknown),
 **6 specification issues** and **11 classes of defects in the original testbench**.
 A corrected RTL passes the full regression with 100 % functional coverage.
 

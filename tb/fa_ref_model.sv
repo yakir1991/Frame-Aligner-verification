@@ -273,6 +273,11 @@ class fa_ref_model;
     sync_pending  = o.sync_pending;
     pos           = o.pos;
     fd            = o.fd;
+    // The DUT-02 emulation keeps counting header-less bytes until the end of
+    // a frame (RTL behaviour); the specification clears the count when the
+    // header is validated.  Re-express the copied count in this model's own
+    // convention so that a later loss decision is not based on a stale count.
+    if (!emulate[BUG_DUT02] && o.emulate[BUG_DUT02] && phase == PH_IN_FRAME) hdrless = 0;
   endfunction
 
   function string state2str();

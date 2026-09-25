@@ -1,0 +1,28 @@
+# Continuous integration for the frame aligner verification repository.
+#
+# Runs the checks that need only stock Ubuntu packages (fast, < 1 minute):
+#   1. rtl/frame_aligner.sv is logically identical to the delivered DUT
+#   2. the corrected RTL is lint clean (verilator -Wall)
+#   3. differential fuzzing (Icarus Verilog):
+#        corrected RTL == specification models, original RTL == bug model
+# The full class-based regression (sim/regress.py) needs Verilator >= 5.030
+# with z3, which Ubuntu does not package yet; run it locally with `make -C sim regress`.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y iverilog verilator
+      - name: RTL untouched
+        run: python3 scripts/check_rtl_untouched.py rtl/frame_aligner.sv
+      - name: Lint corrected RTL
+        run: verilator --lint-only -Wall -Wno-DECLFILENAME rtl/frame_aligner_fixed.sv
+      - name: Differential fuzzing
+        run: python3 scripts/fuzz_rtl.py --streams 1500 --seed 1

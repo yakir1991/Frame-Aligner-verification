@@ -81,7 +81,7 @@ def main():
 
     runs = []
     for seed in range(1, args.seeds + 1):
-        for test in ("directed", "boundary", "random"):
+        for test in ("directed", "boundary", "random", "regression"):
             runs.append(("fixed", "spec", test, seed, "PASS"))
         runs.append(("orig", "dut", "regression", seed, "PASS"))
         runs.append(("orig", "spec", "regression", seed, "FAIL-KNOWN"))
@@ -98,6 +98,8 @@ def main():
             ok, note = False, "no FA_RESULT line (crash?)"
         elif expect == "PASS":
             ok = r["verdict"] == "PASS"
+            if dut == "fixed" and test == "regression":
+                ok &= float(r["cov"]) == 100.0      # coverage closure on the full regression
             note = f"compared={r['compared']} cp={r['cp_pass']}/{int(r['cp_pass']) + int(r['cp_fail'])} cov={r['cov']}%"
         else:
             sva = sva_counts(out)
