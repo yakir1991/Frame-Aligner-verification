@@ -26,7 +26,7 @@ module tb_trace;
 
   reg [8:0]    mem [0:4194303];
   integer      n, i, fo;
-  reg [1023:0] fin, fout;
+  string       fin, fout;          // file names (any length)
 
   initial begin
     if (!$value$plusargs("N=%d", n))     n    = 0;

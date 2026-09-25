@@ -18,9 +18,14 @@ const IMG = (f) => path.join(ROOT, "docs", "images", f);
 const OUT = path.join(ROOT, "docs", "Frame_Aligner_Verification.pptx");
 
 // ---------------------------------------------------------------- data (logs)
+// Every log used by the deck must exist and contain an FA_RESULT line;
+// otherwise the build stops (a missing run must never render as PASS).
 function readLog(name) {
   const p = path.join(ROOT, "sim", "logs", name);
-  return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
+  if (!fs.existsSync(p)) throw new Error(`missing ${p} -- run 'make -C sim regress' first`);
+  const t = fs.readFileSync(p, "utf8");
+  if (!/^FA_RESULT /m.test(t)) throw new Error(`no FA_RESULT line in ${p}`);
+  return t;
 }
 function result(text) {
   const m = text.match(/^FA_RESULT (.*)$/m);
@@ -289,7 +294,7 @@ function box(s, x, y, w, h, label, o = {}) {
     ["R2", "While hunting, every byte is examined; a wrong MSB that is itself an LSB starts a new candidate. No header in the stream is missed", "text p.3"],
     ["R3", "After a header the next 10 bytes are payload and are not examined", "design slides (FSM)"],
     ["R4", "frame_detect rises one byte after the 3rd consecutive header (payload byte 0)", "text p.6, waveform 1"],
-    ["R5", "frame_detect falls on the 48th consecutive byte that is not part of a validated header", "text p.6, register table"],
+    ["R5", "frame_detect falls on the 48th counted hunting byte (a header LSB counts when it arrives); header MSB and payload never count", "text p.6, register table"],
     ["R6", "fr_byte_position = index of the byte just consumed (0..11); 0 while hunting", "port table, waveform 1"],
     ["R7", "Asynchronous reset: outputs 0, hunting restarts", "port table"],
   ];
@@ -588,9 +593,9 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
   card(s, 8.3, 1.65, 4.4, 3.0);
   s.addText("Root cause", { x: 8.5, y: 1.75, w: 4, h: 0.4, fontFace: F.head, fontSize: 16, bold: true, margin: 0, isTextBox: true });
   bullets(s, [
-    "the header LSB is counted as a non-aligned byte (46 -> 47)",
-    "the clear (na_byte_counter == 47) is not qualified: the valid MSB clears frame_detect",
-    "the whole valid frame is received with frame_detect = 0; outage lasts 3 frames",
+    "after 46 header-less bytes the header LSB brings the counter to 47 (correct: it reaches 48 only on the next counted byte)",
+    "but the clear (na_byte_counter == 47) is not qualified by na_byte_count_inc: the valid MSB clears frame_detect",
+    "the whole valid frame is received with frame_detect = 0; outage 25 cycles",
   ], 8.5, 2.2, 4.0, 2.4, { fs: 13 });
   const rows = [
     [{ text: "gap", options: { bold: true, color: C.white, fill: { color: C.ink } } }, { text: "spec", options: { bold: true, color: C.white, fill: { color: C.ink } } }, { text: "delivered RTL", options: { bold: true, color: C.white, fill: { color: C.ink } } }],
@@ -715,16 +720,16 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
 {
   const s = content("0x0C", "Regression results", "make -C sim regress: every run is checked against its EXPECTED outcome");
   const H = (t) => ({ text: t, options: { bold: true, color: C.white, fill: { color: C.ink } } });
-  const ok = (t) => ({ text: t, options: { bold: true, color: C.spec } });
-  const bad = (t) => ({ text: t, options: { bold: true, color: C.bug } });
+  const V = (r) => ({ text: r.verdict, options: { bold: true, color: r.verdict === "PASS" ? C.spec : C.bug } });
+  const CP = (r) => (+r.cp_pass + +r.cp_fail) ? `${num(r.cp_pass)} / ${num(+r.cp_pass + +r.cp_fail)}` : "-";
   const rows = [
     [H("RTL"), H("test"), H("model"), H("cycles"), H("checkpoints"), H("verdict"), H("expected")],
-    ["corrected", "directed", "spec", num(FIXED.directed.compared), `${num(FIXED.directed.cp_pass)} / ${num(FIXED.directed.cp_pass)}`, ok("PASS"), "PASS"],
-    ["corrected", "boundary sweep", "spec", num(FIXED.boundary.compared), `${num(FIXED.boundary.cp_pass)} / ${num(FIXED.boundary.cp_pass)}`, ok("PASS"), "PASS"],
-    ["corrected", "random", "spec", num(FIXED.random.compared), "-", ok("PASS"), "PASS"],
-    ["corrected", "regression", "spec", num(FIXED.regression.compared), `${num(FIXED.regression.cp_pass)} / ${num(FIXED.regression.cp_pass)}`, ok("PASS"), `PASS, cov ${FIXED.regression.cov} %`],
-    ["delivered", "regression", "DUT", num(ORIG_DUTMODE.compared), "tolerated", ok("PASS"), "PASS (no new behaviour)"],
-    ["delivered", "regression", "spec", num(ORIG.compared), `${num(ORIG.cp_pass)} / ${num(cpTotal)}`, bad("FAIL"), "FAIL, 0 unexplained"],
+    ["corrected", "directed", "spec", num(FIXED.directed.compared), CP(FIXED.directed), V(FIXED.directed), "PASS"],
+    ["corrected", "boundary sweep", "spec", num(FIXED.boundary.compared), CP(FIXED.boundary), V(FIXED.boundary), "PASS"],
+    ["corrected", "random", "spec", num(FIXED.random.compared), CP(FIXED.random), V(FIXED.random), "PASS"],
+    ["corrected", "regression", "spec", num(FIXED.regression.compared), CP(FIXED.regression), V(FIXED.regression), `PASS, cov ${FIXED.regression.cov} %`],
+    ["delivered", "regression", "DUT", num(ORIG_DUTMODE.compared), "tolerated", V(ORIG_DUTMODE), "PASS (no new behaviour)"],
+    ["delivered", "regression", "spec", num(ORIG.compared), CP(ORIG), V(ORIG), `FAIL, ${ORIG.unexplained} unexplained`],
   ];
   s.addTable(rows, {
     x: 0.6, y: 1.7, w: 7.3, colW: [1.05, 1.3, 0.75, 0.9, 1.25, 0.8, 1.25], fontFace: F.body, fontSize: 11.5,

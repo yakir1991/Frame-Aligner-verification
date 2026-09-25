@@ -57,11 +57,11 @@ regress:
 
 lint:
 	-$(VERILATOR) --lint-only -Wall -Wno-DECLFILENAME ../rtl/frame_aligner.sv
-	$(VERILATOR) --lint-only -Wall -Wno-DECLFILENAME ../rtl/frame_aligner_fixed.sv
+	$(VERILATOR) --lint-only -Wall ../rtl/frame_aligner_fixed.sv
 
 # The corrected RTL must be completely lint clean (-Wall warnings are fatal).
 lint-fixed:
-	$(VERILATOR) --lint-only -Wall -Wno-DECLFILENAME ../rtl/frame_aligner_fixed.sv
+	$(VERILATOR) --lint-only -Wall ../rtl/frame_aligner_fixed.sv
 
 check-rtl-untouched:
 	python3 ../scripts/check_rtl_untouched.py ../rtl/frame_aligner.sv

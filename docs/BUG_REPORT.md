@@ -7,8 +7,12 @@ This report covers three things:
 
 Every DUT defect is:
 - reproduced by a directed scenario (`make -C sim sim DUT=orig TEST=<scenario>`);
-- attributed automatically by the scoreboard, or caught by a named assertion;
-- repaired in `rtl/frame_aligner_fixed.sv` (tag `FIX DUT-0x`), which passes the whole regression.
+- attributed automatically by the scoreboard, or caught by a named assertion.
+
+DUT-01..DUT-06 are repaired in `rtl/frame_aligner_fixed.sv` (tag `FIX DUT-0x`),
+which passes the whole regression. DUT-07 is an architecture change that needs a
+specification decision, and DUT-08 is guarded by the testbench assertion
+`TB_IN_KNOWN`; both are intentionally left unchanged.
 
 Severity scale: **Critical** = legal traffic is not aligned, or alignment is lost
 permanently. **High** = a wrong alignment decision on legal or near-legal traffic.
@@ -154,16 +158,15 @@ end
 | Scenarios | `loss_boundary` (TP10, G = 46), `boundary` (TP23) |
 | Figure | `wave_dut02_sync_drop.png` |
 
-**Root cause.** Two things combine:
-1. The header LSB is counted as a non-aligned byte in `FR_IDLE`.
-2. `frame_detect` is cleared whenever the *registered* counter shows 47, on **any**
-   following byte and in **any** state. The clear is not qualified by
-   `na_byte_count_inc`.
+**Root cause.** `frame_detect` is cleared whenever the *registered* counter
+shows 47, on **any** following byte and in **any** state. The clear is not
+qualified by `na_byte_count_inc`, so it also fires on bytes that are not counted.
 
-After 46 header-less bytes, a valid header's LSB brings the counter to 47. The
-valid MSB then clears `frame_detect`, and the DUT receives the whole valid frame
-(state `FR_DATA`, `legal_frame_counter = 1`) with `frame_detect = 0`. The counter
-never reached 48.
+After 46 header-less bytes, a valid header's LSB brings the counter to 47. Counting
+the LSB is correct: the register table counts it when it arrives, and the repaired
+RTL keeps it. The valid MSB is not counted, so the counter never reaches 48. But
+the unqualified clear fires anyway, and the DUT receives the whole valid frame
+(state `FR_DATA`, `legal_frame_counter = 1`) with `frame_detect = 0`.
 
 **Observed vs. expected.** After alignment, G header-less bytes, then a valid header:
 
@@ -250,7 +253,7 @@ because `frame_detect` is already 0). `WB_DUT05_NA_NO_WRAP` catches it.
 | Comment "expected lsb header pattern" describes the MSB | `:204` |
 | Comment on `na_byte_counter` says it counts "illegal frames"; it counts bytes | `:244` |
 
-The repaired RTL is `verilator -Wall` clean (checked by `make -C sim lint-fixed`).
+The repaired RTL is clean under plain `verilator -Wall` (checked by `make -C sim lint-fixed` and by CI). One justified `lint_off DECLFILENAME` is needed, because both RTL files define `module frame_aligner`.
 No functional lint, latch or reset defect was found (async reset of every flop
 verified).
 

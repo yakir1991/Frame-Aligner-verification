@@ -87,8 +87,10 @@ def simulate(variant, words, workdir):
         f.write("\n".join("%03x" % ((r << 8) | b) for r, b in words) + "\n")
     subprocess.run(["vvp", "-n", vvp, f"+N={len(words)}", f"+IN={stim}", f"+OUT={resp}"],
                    check=True, capture_output=True)
+    if not os.path.exists(resp):
+        sys.exit(f"simulation produced no response file: {resp}")
     rows = open(resp).read().split()
-    assert len(rows) == len(words)
+    assert len(rows) == len(words), (len(rows), len(words))
     return [(int(l[0], 16), int(l[1], 16)) for l in rows]
 
 

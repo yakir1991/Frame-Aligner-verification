@@ -23,6 +23,6 @@ jobs:
       - name: RTL untouched
         run: python3 scripts/check_rtl_untouched.py rtl/frame_aligner.sv
       - name: Lint corrected RTL
-        run: verilator --lint-only -Wall -Wno-DECLFILENAME rtl/frame_aligner_fixed.sv
+        run: verilator --lint-only -Wall rtl/frame_aligner_fixed.sv
       - name: Differential fuzzing
         run: python3 scripts/fuzz_rtl.py --streams 1500 --seed 1

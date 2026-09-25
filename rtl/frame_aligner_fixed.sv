@@ -2,9 +2,12 @@
 //==============================================================================
 // frame_aligner  --  CORRECTED REFERENCE IMPLEMENTATION
 //------------------------------------------------------------------------------
-//  This is the original design (rtl/frame_aligner.sv) with the defects found by
-//  verification repaired.  It keeps the same module name, ports, state encoding
-//  and internal signal names so that:
+//  This is the original design (rtl/frame_aligner.sv) with the defects
+//  DUT-01..DUT-06 repaired.  DUT-07 (no fly-wheel; an architecture change that
+//  needs a specification decision) and DUT-08 (X-optimistic decode; guarded by
+//  the testbench assertion TB_IN_KNOWN) are intentionally left unchanged.
+//  It keeps the same module name, port order, state encoding and internal
+//  signal names so that:
 //    * the same testbench runs on either implementation
 //      (make sim DUT=orig | make sim DUT=fixed), and
 //    * the same white-box assertion module binds to both.
@@ -15,22 +18,28 @@
 //  Behaviour summary (the verification reference model implements the same
 //  rules independently, see tb/fa_ref_model.sv):
 //    * Header search never loses a header LSB (FIX DUT-01).
-//    * Sync is lost on the 48th consecutive byte that is NOT part of a
-//      validated header.  A header completed within those 48 bytes keeps sync,
-//      and sync is never dropped while a validated frame is being received
+//    * Sync is lost on the 48th consecutive COUNTED byte.  Every hunting byte
+//      is counted when it arrives, including a header LSB (register-table
+//      reading, docs/BUG_REPORT.md SPEC-06), so a header whose LSB is the 48th
+//      byte does not keep sync.  The byte that completes a header (MSB) and
+//      the payload bytes are never counted, so they can never clear sync
 //      (FIX DUT-02).
 //    * fr_byte_position is 0 whenever the aligner is not inside a validated
 //      frame (FIX DUT-03).
 //    * Counters saturate instead of wrapping (FIX DUT-04, DUT-05).
 //==============================================================================
 
-module frame_aligner (
+// Both RTL files define module frame_aligner so that the testbench can use
+// either one; the file name therefore intentionally differs from the module.
+/* verilator lint_off DECLFILENAME */
+module frame_aligner (                  // same port ORDER as the original
    input  wire       clk,               // byte clock
-   input  wire       reset,             // asynchronous, active-high reset
    input  wire [7:0] rx_data,           // byte stream from the PHY
+   input  wire       reset,             // asynchronous, active-high reset
    output reg  [3:0] fr_byte_position,  // index of the byte just sampled (0..11)
    output reg        frame_detect       // frame alignment indication
 );
+/* verilator lint_on DECLFILENAME */
 
    // Header byte values (LSB is transmitted first).
    localparam [7:0] HEAD1_LSB = 8'hAA, HEAD1_MSB = 8'hAF;
@@ -40,7 +49,9 @@ module frame_aligner (
    localparam [5:0] NA_LIMIT  = 6'd47;   // 48th header-less byte clears sync
 
    reg [1:0] legal_frame_counter;        // consecutive valid frames (saturates at 3)
-   reg [5:0] na_byte_counter;            // header-less bytes (saturates at 63)
+   reg [5:0] na_byte_counter;            // counted (hunting) bytes, saturates at 63;
+                                         // cleared at the end of a frame and holds
+                                         // its value (uncounted) during the frame
    reg [7:0] header_lsb_samp;            // last header LSB seen
 
    // FSM control triggers
@@ -79,6 +90,8 @@ module frame_aligner (
 
       case (current_state)
          FR_IDLE: begin
+            // Every hunting byte is counted, a header LSB included (deliberately
+            // unchanged: register-table reading of the 48-byte rule).
             fr_byte_position_rst = 1'b1;
             na_byte_count_inc    = 1'b1;
             if (header_lsb_valid) begin
@@ -114,7 +127,7 @@ module frame_aligner (
 
          FR_DATA: begin
             if (fr_byte_position == LAST_POS) begin   // FIX DUT-06: 4-bit compare
-               na_byte_count_rst = 1'b1;
+               na_byte_count_rst = 1'b1;              // unchanged: cleared at frame end
                next_state        = FR_IDLE;
             end else begin
                next_state = FR_DATA;

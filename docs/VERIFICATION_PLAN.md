@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Design under test | `frame_aligner` (`rtl/frame_aligner.sv`, delivered RTL, logic unchanged) |
-| Reference repair | `rtl/frame_aligner_fixed.sv` (every defect in [BUG_REPORT.md](BUG_REPORT.md) repaired) |
+| Reference repair | `rtl/frame_aligner_fixed.sv` (DUT-01..06 from [BUG_REPORT.md](BUG_REPORT.md) repaired; DUT-07/08 intentionally unchanged) |
 | Specification | `docs/spec/Frame_Aligner_Spec_10.24.pdf` |
 | Environment | SystemVerilog, class-based, `tb/` (runs on Verilator ≥ 5.030; standard IEEE 1800 for commercial tools) |
 | Author | Yakir Aqua |
@@ -63,7 +63,7 @@ All three agree on every cycle of 900k fuzzed cycles.
 | **R2** | While hunting, every byte is examined. If a candidate's MSB is wrong and that byte is itself a header LSB, it becomes the new candidate, so no header that is fully present in the stream is ever missed. | spec text ("constantly monitoring the incoming data stream"); a header missed because of the byte before it breaks R4 |
 | **R3** | After a validated header, the next 10 bytes are payload and are not examined, so header patterns inside a payload are ignored. The byte after the payload is expected to be the next header LSB. | design slides (FSM) |
 | **R4** | `frame_detect` rises one byte after the 3rd consecutive header is validated, i.e. on payload byte 0 of the 3rd frame. "Consecutive" means no hunting byte between the frames. | text p.6, waveform 1 |
-| **R5** | `frame_detect` falls on the 48th consecutive byte that is not part of a validated header (4 frames × 12 bytes). A header completed within those bytes keeps alignment. Bytes of a validated frame are never counted. A header LSB counts when it arrives (register table: "counter reaches 48"). | text p.6, register table, FSM |
+| **R5** | `frame_detect` falls on the 48th consecutive *counted* byte (4 frames × 12 bytes). Every hunting byte is counted when it arrives, a header LSB included (register table: "counter reaches 48"). The byte that completes a header (MSB) and the payload bytes are never counted, so they can never clear alignment. A header completed before the count reaches 48 keeps alignment. | text p.6, register table, FSM |
 | **R6** | `fr_byte_position` (registered) is the index of the byte just consumed within its frame: LSB 0, MSB 1, payload 2..11. It is 0 while hunting. | port table ("range 0–11"), waveform 1 |
 | **R7** | Asynchronous reset clears everything; the outputs are 0 while reset is high. | port table |
 

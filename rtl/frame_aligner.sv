@@ -43,8 +43,8 @@
 //    DUT-01  A rejected header MSB that is itself a header LSB is thrown away
 //            (AA AA AF, 55 55 BA, AA 55 BA, 55 AA AF -> header missed).
 //    DUT-02  frame_detect is cleared on the very byte that completes a VALID
-//            header (46 header-less bytes + header); the clear condition is
-//            not qualified and the header LSB is counted as a non-aligned byte.
+//            header (46 header-less bytes + header): the clear condition
+//            (na_byte_counter == 47) is not qualified by na_byte_count_inc.
 //    DUT-03  fr_byte_position reports 1 ("header MSB") for one cycle after a
 //            header was REJECTED, although no frame exists.
 //    DUT-04  legal_frame_counter wraps 3 -> 0 on the 4th consecutive frame
@@ -52,8 +52,14 @@
 //    DUT-05  na_byte_counter wraps 63 -> 0 on long header-less streams
 //            (latent, not visible at the ports today).
 //    DUT-06  Coding issues: no default assignment of next_state, width
-//            mismatch (4-bit vs 8'd10), misleading comment.
-//  A corrected implementation lives in rtl/frame_aligner_fixed.sv.
+//            mismatch (4-bit vs 8'd10), misleading comments (lines marked).
+//    DUT-07  No fly-wheel (architecture): while aligned the FSM keeps hunting
+//            byte by byte, so slipped / mis-sized frames never lose alignment.
+//    DUT-08  X-optimistic header decode: X/Z on rx_data is silently treated as
+//            "not a header" in RTL simulation (a netlist propagates X).
+//  A corrected implementation lives in rtl/frame_aligner_fixed.sv: it repairs
+//  DUT-01..06; DUT-07 (needs a spec decision) and DUT-08 (guarded by the
+//  testbench assertion TB_IN_KNOWN) are intentionally left unchanged.
 //==============================================================================
 
 
@@ -120,9 +126,12 @@ module frame_aligner(clk, rx_data , reset , fr_byte_position , frame_detect) ;
 	case(current_state)
 	  FR_IDLE:
 	    begin
-	       // Hunting. Every byte here is counted as "not aligned".
-	       // DUT-02 (part 1): a header LSB is also counted, so a valid header
-	       // that arrives after 46 header-less bytes drives the counter to 47.
+	       // Hunting. Every byte here is counted as "not aligned", including a
+	       // header LSB (spec-conforming: the register table counts it when it
+	       // arrives).  After 46 header-less bytes a valid header's LSB drives
+	       // the counter to 47 -- which only becomes a problem because of the
+	       // unqualified clear further down (DUT-02).
+	       // DUT-07: this hunt also runs while aligned (no fly-wheel).
 	       if(header_lsb_valid)
 		 begin
 		    fr_byte_position_rst = 1'b1;
@@ -188,6 +197,7 @@ module frame_aligner(clk, rx_data , reset , fr_byte_position , frame_detect) ;
    // first the lsb pattern is sampled . in case the msb pattern matches , the FSM will advance to FR_HMSB
 
    // Combinational: current byte is a header LSB (either header type).
+   // DUT-08: if rx_data is X/Z this is X, and every "if" below treats it as 0.
    assign header_lsb_valid = (rx_data == 8'haa) || (rx_data == 8'h55);
 
      // Remember the most recent header LSB. It is sampled in every state, but
@@ -217,7 +227,8 @@ module frame_aligner(clk, rx_data , reset , fr_byte_position , frame_detect) ;
 
    //  fr_byte_position increments by default , reset is controlled by the fsm
    //  Values: 0 after a header LSB (or any hunting byte), 1 after the MSB,
-   //  2..11 after payload bytes 0..9.
+   //  2..11 after payload bytes 0..9 -- except 1 after a REJECTED header
+   //  (DUT-03).
    always @ (posedge clk or  posedge reset)
      begin
 	if (reset)
@@ -242,8 +253,9 @@ module frame_aligner(clk, rx_data , reset , fr_byte_position , frame_detect) ;
      end
 
    // na_byte_counter is counting the illegal frames . in case there are 48 continues bytes witout header frame_detect will set low
-   // It is cleared only on the last payload byte of a frame (not when the
-   // header is validated) -- this is one half of DUT-02.
+   // (DUT-06: the comment above is wrong -- it counts BYTES, not frames.)
+   // It is cleared on the last payload byte of a frame; during the frame it
+   // keeps its value (no counting happens there, so that is harmless).
    // DUT-05: wraps from 63 back to 0 on long header-less streams.
      always @ (posedge clk or  posedge reset)
        begin
@@ -258,9 +270,10 @@ module frame_aligner(clk, rx_data , reset , fr_byte_position , frame_detect) ;
    // Alignment indication.
    //   set   : one cycle after legal_frame_counter reaches 3 (has priority)
    //   clear : when na_byte_counter == 47, i.e. on the 48th counted byte
-   // DUT-02 (part 2): the clear is evaluated in EVERY state. It is not
+   // DUT-02 (root cause): the clear is evaluated in EVERY state.  It is not
    //   qualified with na_byte_count_inc, so it also fires on the byte that
-   //   completes a valid header and throughout the following payload.
+   //   completes a valid header (counter already 47 from the LSB) and
+   //   throughout the following payload, although the counter never reached 48.
    always @ (posedge clk or  posedge reset)
      begin
 	if (reset)

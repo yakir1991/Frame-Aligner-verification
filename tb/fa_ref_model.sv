@@ -21,10 +21,12 @@
 //    R4  frame_detect rises one byte after the 3rd consecutive header is
 //        validated (spec waveform 1).  "Consecutive" = no hunting byte between
 //        the frames.
-//    R5  frame_detect falls on the 48th consecutive byte that is not part of a
-//        validated header (4 frames x 12 bytes).  A header completed within
-//        those 48 bytes keeps alignment; bytes of a validated frame never
-//        count and can never clear alignment.
+//    R5  frame_detect falls on the 48th consecutive COUNTED byte (4 frames x
+//        12 bytes).  Every hunting byte is counted when it arrives, a header
+//        LSB included (register table: "counter reaches 48"); the byte that
+//        completes a header (MSB) and payload bytes are never counted, so they
+//        can never clear alignment.  A header completed before the count
+//        reaches 48 keeps alignment.
 //    R6  fr_byte_position (registered) = index of the byte just consumed in the
 //        current frame: LSB 0, MSB 1, payload 2..11; 0 while hunting.
 //    R7  Asynchronous reset returns everything to the hunting state, outputs 0.
