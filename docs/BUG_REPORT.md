@@ -95,6 +95,10 @@ that matches the stored LSB. If it is not, it always returns to `FR_IDLE`. If th
 rejected byte is itself a header LSB (`0xAA`/`0x55`), it is never examined as the
 start of a new header. That header is lost, and the frame that follows is missed.
 
+**Exact trigger (verified by simulation).** While the DUT is hunting, a header
+is missed exactly when it follows an **odd-length run** of `0xAA`/`0x55` bytes.
+With an even-length run, the pairs cancel out and the header is found.
+
 **Minimal reproductions.**
 
 | Stream | Expected (spec) | Original RTL |
@@ -166,7 +170,7 @@ never reached 48.
 | G | Expected (register table) | Original RTL |
 |---|---|---|
 | ≤ 45 | aligned | aligned |
-| **46** | aligned (the counter never reaches 48) | **lost** on the valid MSB, re-aligned only after 3 more frames (outage ≈ 26 cycles) |
+| **46** | aligned (the counter never reaches 48) | **lost** on the valid MSB, re-aligned only after 3 more frames (outage 25 cycles) |
 | 47 | lost on the LSB (the counter reaches 48) | lost |
 | ≥ 48 | lost | lost |
 
