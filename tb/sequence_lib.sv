@@ -596,8 +596,8 @@ class fa_sequence_lib;
   endtask
 
   // TP25 -- start-up in the middle of a legal stream whose payloads end in a
-  // header LSB value (0xAA / 0x55, e.g. an idle/fill pattern).  The last
-  // payload byte is seen as a header LSB, the real LSB that follows is
+  // single header LSB value (0xAA / 0x55, e.g. a fixed trailer byte).  The
+  // last payload byte is seen as a header LSB, the real LSB that follows is
   // rejected, and with DUT-01 the real header is lost -- for EVERY frame.
   // Spec: three consecutive correct frames must always align.
   task midstream_entry();

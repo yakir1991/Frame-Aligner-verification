@@ -55,7 +55,10 @@ independently three times:
 - a causal Python model (`scripts/fa_model.py: CausalModel`);
 - an independent, non-causal Python frame parser (`offline_spec`).
 
-All three agree on every cycle of 900k fuzzed cycles.
+The two Python models agree with each other and with the repaired RTL on every one
+of ~910k fuzzed cycles (`scripts/fuzz_rtl.py`, seeds 1 and 7). The SystemVerilog
+model agrees with the repaired RTL on the whole regression and on fuzz traffic
+replayed through the bench (`+TEST=file`, §7).
 
 | Rule | Statement | Source |
 |---|---|---|
@@ -153,15 +156,15 @@ BUG_REPORT §4.
 | TP17 | `long_garbage` | 80 header-less bytes, then re-align | – | lost on the 48th byte; counter must not wrap; re-align | DUT-05 (white-box) | – |
 | TP18 | `reset_every_phase` | Asynchronous reset while hunting / after an LSB / inside a frame, aligned or not | – | outputs 0; no header across a reset | – | – |
 | TP19 | `false_lock_in_sync` | Corrupted header + header pattern in its payload while aligned | – | locks onto the false frame (hunting architecture) | DUT-07 (demo) | – |
-| TP20 | `consecutive_rule` | One hunting byte breaks the chain | V, 1 byte, V, V, V | aligned only after the 4th frame | – | – |
+| TP20 | `consecutive_rule` | One hunting byte breaks the chain | V, 1 byte, V, V, V; V, V, stray `AA`/`55`, V, V, V | aligned only on the 3rd frame after the break (a stray LSB restarts the chain too) | – | – |
 | TP21 | `header_across_items` | Header split across two stimulus items | `… AA \| AF …` | recognised | – | – |
-| TP22 | `illegal_lengths` | Illegal frames of 2–49 bytes while aligned | – | lost on exactly the 48th header-less byte | – | – |
+| TP22 | `illegal_lengths` | Illegal frames of different lengths while aligned | 2 + 12 + 36 header-less bytes; one 49-byte illegal frame | lost on exactly the 48th header-less byte | – | – |
 | TP23 | `boundary` | Sweep of R5 | aligned, G = 0..60 header-less bytes, with or without a stray LSB | kept iff G + prefix ≤ 46 | **DUT-01, DUT-02** | – |
 | TP24 | `loss_cause` | Every kind of 48th byte; restart while aligned | 46 bytes + `AA 01`, 46 + `AA 55`, `AA 55 BA` | lost on the rejected MSB / restart LSB; restart keeps alignment | DUT-01 | – |
-| TP25 | `midstream_entry` | Start-up in the middle of a legal stream whose payloads end in `55`/`AA` | – | aligned after 3 frames | **DUT-01 (never aligns)** | – |
+| TP25 | `midstream_entry` | Start-up in the middle of a legal stream whose payloads end in a single `55`/`AA` | – | aligned after 3 frames | **DUT-01 (never aligns)** | – |
 | TP26 | `error_then_lsb_payloads` | One header error while aligned, then legal frames ending in `55` | – | alignment kept (12 header-less bytes) | **DUT-01 (permanent loss)** | – |
 | TP27 | `slip_in_sync` | 13-byte frames before and after alignment | – | never aligns from reset; hunting keeps alignment | DUT-07 (demo) | – |
-| TPR | `random` | Constrained random: 61% valid, 18% illegal, 8% restart, 12% gap, 2% reset (+`NUM_ITEMS`) | – | checked by the model and the SVA | all | random_test |
+| TPR | `random` | Constrained random: 60% valid, 18% illegal, 8% restart, 12% gap, 2% reset (+`NUM_ITEMS`) | – | checked by the model and the SVA | all | random_test |
 
 ## 5. Coverage plan
 
@@ -187,7 +190,7 @@ information, so it measures **specification features**, not raw signal values.
 
 Coverage target: 100% of all bins in the regression. Reached with `+TEST=regression`
 (see §8). The white-box and spec cover properties (`C_*`) must all be hit, which
-shows that no assertion passes vacuously.
+shows that the key assertion antecedents are exercised (the checks are not vacuous).
 
 ## 6. Assertion plan
 
@@ -213,30 +216,62 @@ repetition only in antecedents, and the `FA_COVER` macro counts cover hits porta
 
 ## 7. Regression and sign-off criteria
 
-`make -C sim regress` runs the matrix below. It passes only if **every** run
-matches its expectation.
+`make -C sim regress` (`sim/regress.py`, default 3 seeds × 400 random items) runs the
+matrix below. It passes only if **every** run matches its expectation, and it writes
+`sim/logs/regression_summary.md`.
 
 | Run | Expectation |
 |---|---|
-| `rtl/frame_aligner.sv` hash | logically identical to the delivered DUT (comments only) |
+| `rtl/frame_aligner.sv` untouched | logically identical to the delivered `dut.sv`: SHA-256 of the comment-stripped token stream (`scripts/check_rtl_untouched.py`) |
 | lint of the fixed RTL (`verilator -Wall`) | clean |
+| fuzz replay, fixed RTL: 3 000 fuzzed streams (`fuzz_rtl.py --write-stim`) driven through the bench with `+TEST=file` | **PASS**: the SystemVerilog spec model matches the RTL on every cycle |
+| fuzz replay, original RTL | **FAIL** with 0 *unexplained* mismatches and no X/Z |
 | fixed RTL × {directed, boundary, random} × seeds, spec model | **PASS**: 0 mismatches, all checkpoints, 0 assertion failures |
-| original RTL, regression, `+MODEL=dut` | **PASS**: no behaviour beyond the documented defects |
-| original RTL, regression, spec model | **FAIL** with 0 *unexplained* mismatches; DUT-01, 02 and 03 detected by the scoreboard; DUT-04 and 05 by the white-box SVA |
-| `scripts/fuzz_rtl.py` | fixed RTL = spec model = independent parser (0 differences); original RTL = bug-emulating model (0 differences) |
+| fixed RTL, `regression` × seeds, spec model | **PASS**, and 100 % functional coverage, and every cover property hit |
+| original RTL, `regression` × seeds, `+MODEL=dut` | **PASS**: no behaviour beyond the documented defects |
+| original RTL, `regression` × seeds, spec model | **FAIL** with 0 *unexplained* mismatches; DUT-01, 02 and 03 attributed by the scoreboard; `WB_DUT04_LEGAL_NO_WRAP` and `WB_DUT05_NA_NO_WRAP` fired |
+
+CI (`.github/workflows/ci.yml`) runs on every push with stock Ubuntu packages only
+(Ubuntu's Verilator is too old for the class-based bench):
+
+| Step | Expectation |
+|---|---|
+| RTL untouched | as above |
+| lint of the fixed RTL | clean |
+| `scripts/fuzz_rtl.py --streams 1500` (Icarus) | fixed RTL = causal Python model = offline frame parser (0 differences); original RTL = bug-emulating model (0 differences) |
+
+Run by hand (not part of the regression): `scripts/mutation_test.py` (§8.1).
 
 ## 8. Results
 
-The latest regression summary is written to `sim/logs/regression_summary.md`.
-Representative numbers (seed 1, 400 random items):
+Numbers from the final regression (`make -C sim regress`, seed 1; seeds 2 and 3 give
+the same picture, see `sim/logs/regression_summary.md`):
 
-| Run | Cycles compared | Checkpoints | Spec violations | Unexplained | Assertion failures | Coverage |
+| Run | Cycles compared | Checkpoints | Spec deviations (all attributed) | Unexplained | Assertion failures | Coverage |
 |---|---|---|---|---|---|---|
-| fixed RTL, regression | 20 k | 3 555 / 3 555 | 0 | 0 | 0 | **100 %** |
-| original RTL, regression | 20 k | 3 341 / 3 555 | 269 (DUT-01: 137, DUT-02: 3, DUT-03: 266)¹ | **0** | spec 519, white-box 418 | 100 % |
-| fuzzing, 3 000 streams × 2 seeds | 910 k | – | original RTL: ~13 % of cycles | 0 | – | – |
+| fixed RTL, regression | 21 079 | 3 605 / 3 605 | 0 | 0 | 0 | **100 %**, 12/12 covers hit |
+| original RTL, regression | 21 079 | 3 383 / 3 605 | 253 (DUT-01: 151, DUT-02: 3, DUT-03: 250)¹ | **0** | spec 561, white-box 477 | 100 % |
+| fixed RTL, fuzz replay | 452 212 | – | 0 | 0 | 0 | 89.2 %² |
+| original RTL, fuzz replay | 452 212 | – | 16 222 (DUT-01: 9 033, DUT-02: 35, DUT-03: 16 187)¹ | **0** | spec 32 918, white-box 27 032 | 89.2 %² |
+| Python fuzzing (Icarus), 3 000 streams × seeds 1 and 7 | 909 673 | – | original RTL: 120 753 cycles (13.3 %), in 5 442 of 6 000 streams³ | 0 against the bug model | – | – |
 
 ¹ One deviation can be attributed to more than one defect.
+² Replayed traffic has no stimulus items and no checkpoints, so the two stimulus coverpoints (CP13, CP14) stay empty.
+³ Every differing cycle is counted. The scoreboard instead reports one deviation per defect occurrence and then re-synchronises, so its counts are lower.
+
+With `+MODEL=dut` the original RTL passes the same regression: every deviation is
+one of the documented defects.
+
+### 8.1 Mutation testing
+
+`scripts/mutation_test.py` measures how good the checkers are. It injects 20 single
+faults (mutants) into the repaired RTL, one at a time, rebuilds the bench and runs
+`+TEST=directed` and `+TEST=boundary` on each mutant. A mutant is *killed* when at
+least one oracle detects it: the scoreboard (SB), the checkpoints (CP), the black-box
+assertions (SVA) or the white-box assertions (WB). A surviving mutant points at a
+hole in the checks.
+
+MUTATION_TABLE
 
 ## 9. How to run
 
@@ -251,7 +286,8 @@ make sim DUT=orig  TEST=restart_header VERBOSITY=2   # one scenario, detailed lo
 make sim DUT=orig  TEST=loss_boundary WAVES=1        # waves.vcd
 make regress                                  # full matrix with expected outcomes
 python3 ../scripts/fuzz_rtl.py --streams 3000 # differential fuzzing (Icarus)
-python3 ../scripts/plot_waves.py              # regenerate docs/images/wave_*.png
+python3 ../scripts/plot_waves.py              # regenerate docs/images/wave_*.png, slide_*.png
+python3 ../scripts/mutation_test.py --jobs 1  # mutation score of the checkers (§8.1)
 ```
 
 Plusargs: `+TEST`, `+MODEL=spec|dut`, `+SEED`, `+NUM_ITEMS`, `+VERBOSITY=0..3`,

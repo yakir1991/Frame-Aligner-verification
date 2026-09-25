@@ -4,7 +4,12 @@
 Each run has an EXPECTED outcome; the regression passes only when every run
 behaves as expected:
 
-  fixed RTL + spec model    : must PASS (the corrected design meets the spec)
+  fixed RTL + spec model    : must PASS (the corrected design meets the spec);
+                              the full 'regression' test must also reach 100 %
+                              functional coverage and hit every cover property
+  fuzz replay (+TEST=file)  : 3 000 streams from scripts/fuzz_rtl.py driven
+                              through the bench: fixed RTL must PASS, original
+                              RTL must FAIL with 0 unexplained mismatches
   original RTL + DUT model  : must PASS (no behaviour beyond the documented
                               defects DUT-01..03 -- regression mode)
   original RTL + spec model : must FAIL, with 0 unexplained mismatches, every

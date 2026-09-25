@@ -1,10 +1,13 @@
 // =============================================================================
 // build_deck.js -- generates docs/Frame_Aligner_Verification.pptx
 // -----------------------------------------------------------------------------
-// Numbers on the result slides are read from the regression logs
-// (sim/logs/*.log, produced by `make -C sim regress`), so the deck always
-// matches the latest regression.  Figures come from docs/images (produced by
-// scripts/plot_waves.py).
+// Data-driven numbers are read from sim/logs (written by `make -C sim regress`
+// and scripts/mutation_test.py): violation and checkpoint counts, the results
+// table and chart, the fuzz-replay cycles and the mutation score.  The build
+// stops if one of those logs is missing.  All other numbers are fixed text
+// taken from docs/BUG_REPORT.md and docs/VERIFICATION_PLAN.md (Python fuzzing
+// totals, legacy-testbench measurements, DUT-01/02 impact figures).
+// Figures come from docs/images (produced by scripts/plot_waves.py).
 //
 //   npm install pptxgenjs      (once)
 //   node docs/presentation/build_deck.js
@@ -52,6 +55,21 @@ const FIXED = {
   regression: result(readLog("fixed_spec_regression_s1.log")),
 };
 const ORIG_DUTMODE = result(readLog("orig_dut_regression_s1.log"));
+const FILE_FIXED = result(readLog("fixed_spec_file_s1.log"));   // fuzz traffic replayed
+const FILE_ORIG = result(readLog("orig_spec_file_s1.log"));
+// Mutation testing results (table written by scripts/mutation_test.py).
+function readMutation() {
+  const p = path.join(ROOT, "sim", "logs", "mutation_summary.md");
+  if (!fs.existsSync(p)) throw new Error(`missing ${p} -- run 'python3 scripts/mutation_test.py' first`);
+  const rows = [];
+  const re = /^\| (M\d+) \| (.*?) \| (KILLED|SURVIVED) \| (.*?) \| (.*?) \| (.*?) \| (.*?) \|$/gm;
+  for (const m of fs.readFileSync(p, "utf8").matchAll(re))
+    rows.push({ id: m[1], desc: m[2], status: m[3], hits: { SB: m[4], CP: m[5], SVA: m[6], WB: m[7] } });
+  if (!rows.length) throw new Error(`no mutant rows in ${p}`);
+  return rows;
+}
+const MUT = readMutation();
+const mutKilled = MUT.filter((r) => r.status === "KILLED").length;
 const BUGS = Object.fromEntries((ORIG.bugs || "DUT-01:0,DUT-02:0,DUT-03:0").split(",").map((s) => s.split(":")));
 const num = (x) => Number(x || 0).toLocaleString("en-US");
 const cpTotal = (+ORIG.cp_pass || 0) + (+ORIG.cp_fail || 0);
@@ -224,7 +242,7 @@ function box(s, x, y, w, h, label, o = {}) {
     ["8", "DUT defects", "3 critical / high; DUT-02 and DUT-03 had been filed as \"spec gaps\"", C.bug],
     ["0", "unexplained mismatches", `every one of ${num(ORIG.known)} spec violations on the delivered RTL is attributed to a known defect`, C.spec],
     ["100 %", "functional coverage", "14 spec-feature coverpoints, every cover property hit", C.fix],
-    ["910 k", "fuzzed cycles cross-checked", "corrected RTL = 3 independent spec models, 0 differences", C.ink3],
+    ["910 k", "fuzzed cycles cross-checked", "corrected RTL = both Python spec models and the SV model: 0 differences", C.ink3],
   ];
   stats.forEach(([big, label, detail, col], i) => {
     const x = 0.6 + i * 3.08;
@@ -325,7 +343,7 @@ function box(s, x, y, w, h, label, o = {}) {
     ["Expected outcomes", "not checked", `${num(cpTotal)} checkpoints at exact byte positions`],
     ["Stimulus", "X bytes; 117 of 917 items never driven; preconditions shuffled away", "2-state; everything driven; every scenario starts from reset"],
     ["Timing", "program-block dependent; reset released on a clock edge", "clocking blocks; reset on the falling edge"],
-    ["Assertions", "3 of 3 vacuous or false; failures not counted", "25 rule-based assertions, counted; non-vacuity proven"],
+    ["Assertions", "3 of 3 vacuous or false; failures not counted", "25 rule-based assertions, counted; cover hits show they are exercised"],
     ["Coverage", "reachable illegal bins, unreachable bins, no spec features", "14 spec-feature coverpoints, closed at 100 %"],
   ];
   const hdr = [
@@ -424,9 +442,9 @@ function box(s, x, y, w, h, label, o = {}) {
     s.addText(d, { x: x + 0.25, y: 3.05, w: 3.4, h: 1.25, fontFace: F.body, fontSize: 13, color: C.text, margin: 0, isTextBox: true });
   });
   card(s, 0.6, 4.7, 12.1, 2.05, C.ink);
-  s.addText("Differential fuzzing (scripts/fuzz_rtl.py): 6 000 streams, 910 k cycles", { x: 0.85, y: 4.8, w: 11.6, h: 0.45, fontFace: F.head, fontSize: 17, bold: true, color: C.amber, margin: 0, isTextBox: true });
+  s.addText(`Differential fuzzing: 910 k cycles (Python models), ${Math.round(FILE_FIXED.compared / 1000)} k replayed in the SV bench`, { x: 0.85, y: 4.8, w: 11.6, h: 0.45, fontFace: F.head, fontSize: 17, bold: true, color: C.amber, margin: 0, isTextBox: true });
   bullets(s, [
-    [{ text: "corrected RTL = SV spec model = Python causal model = independent frame parser: ", options: { color: C.white } }, { text: "0 differences", options: { bold: true, color: C.amber } }],
+    [{ text: "corrected RTL = Python causal model = independent frame parser = SV spec model: ", options: { color: C.white } }, { text: "0 differences", options: { bold: true, color: C.amber } }],
     [{ text: "delivered RTL = bug-emulating model: ", options: { color: C.white } }, { text: "0 differences", options: { bold: true, color: C.amber } }, { text: " (every deviation is DUT-01, 02 or 03)", options: { color: C.white } }],
     [{ text: "delivered RTL vs. specification: ", options: { color: C.white } }, { text: "13 % of all cycles wrong", options: { bold: true, color: C.amber } }, { text: " on stress traffic", options: { color: C.white } }],
   ], 0.85, 5.3, 11.6, 1.4, { fs: 14.5, color: C.white });
@@ -457,15 +475,15 @@ const TP2 = [
   ["TP17", "long_garbage", "80 header-less bytes, re-align", "lost on 48; counter saturates", "DUT-05"],
   ["TP18", "reset_every_phase", "async reset in each phase, aligned or not", "outputs 0; no header across reset", ""],
   ["TP19", "false_lock_in_sync", "corrupted header + header pattern in payload", "locks on the false frame", "DUT-07 demo"],
-  ["TP20", "consecutive_rule", "V, 1 byte, V, V, V", "aligned only after frame 4", ""],
+  ["TP20", "consecutive_rule", "V, 1 byte, V, V, V; V, V, stray LSB, V, V, V", "aligned on the 3rd frame after the break", ""],
   ["TP21", "header_across_items", "... AA | AF ... across two items", "recognised", ""],
-  ["TP22", "illegal_lengths", "illegal frames of 2..49 bytes (aligned)", "lost on exactly the 48th byte", ""],
+  ["TP22", "illegal_lengths", "2 + 12 + 36 and 49 header-less bytes (aligned)", "lost on exactly the 48th byte", ""],
   ["TP23", "boundary", "sweep 0..60 header-less bytes, +/- stray LSB", "kept iff gap + prefix <= 46", "DUT-01/02"],
   ["TP24", "loss_cause", "48th byte = rejected MSB / restart LSB", "lost on that byte", "DUT-01"],
-  ["TP25", "midstream_entry", "start mid-stream; payloads end in 55 / AA", "aligned after 3 frames", "DUT-01"],
+  ["TP25", "midstream_entry", "start mid-stream; payloads end in one 55 / AA", "aligned after 3 frames", "DUT-01"],
   ["TP26", "error_then_lsb_payloads", "1 header error, then payloads ending in 55", "alignment kept", "DUT-01"],
   ["TP27", "slip_in_sync", "13-byte frames before / after alignment", "hunting keeps alignment", "DUT-07 demo"],
-  ["RND", "random", "61 % valid, 18 % illegal, 8 % restart, 12 % gap, 2 % reset", "model + assertions", "all"],
+  ["RND", "random", "60 % valid, 18 % illegal, 8 % restart, 12 % gap, 2 % reset", "model + assertions", "all"],
 ];
 function tpSlide(code, title, rows) {
   const s = content(code, title, "Every scenario starts from reset and checks its expected outcome at exact bytes (checkpoints)");
@@ -531,7 +549,7 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
   s.addText("The student's scoreboard mirrored the RTL, so these were either unseen or filed as \"gaps in the spec\".",
     { x: 0.6, y: 2.0, w: 11.5, h: 0.6, fontFace: F.body, fontSize: 18, color: C.ice, margin: 0, isTextBox: true });
   const D = [
-    ["DUT-01", "Header LSB lost: legal streams never align", "Critical", C.bug],
+    ["DUT-01", "Header LSB lost: some legal streams never align", "Critical", C.bug],
     ["DUT-02", "Alignment dropped on a valid header", "High", C.bug],
     ["DUT-07", "No fly-wheel: slips never lose alignment", "High (arch.)", C.bug],
     ["DUT-03", "Position 1 reported for a rejected header", "Medium", C.amber],
@@ -568,12 +586,12 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
 // 14. DUT-01 impact
 // =============================================================================
 {
-  const s = content("DUT-01", "Legal traffic is never aligned", "Payload byte 9 = 0x55 (or 0xAA) looks like a header LSB; the real LSB rejects it and is thrown away, for every frame");
+  const s = content("DUT-01", "Some legal streams are never aligned", "A single 0x55 (or 0xAA) as the last payload byte looks like a header LSB; the real LSB rejects it and is lost, in every frame");
   image(s, "slide_dut01_midstream.png", 0.6, 1.65, 12.1, 3.55);
   const st = [
-    ["never", "aligned: start-up in the middle of a legal stream whose payloads end in 0x55 (TP25: 20 of 20 checkpoints fail)"],
+    ["never", "aligned: start-up inside a legal stream whose payloads end in a single 0x55 (TP25: 20 of 20 checkpoints fail)"],
     ["permanent", "loss after one bit error in a header, if the following payloads end in 0x55 (TP26)"],
-    ["1 in 128", "chance per bad frame of losing alignment after only 3 bad frames (random payload)"],
+    ["1 in 128", "chance that only 3 bad frames already lose alignment: the byte before the 4th header is 0xAA / 0x55"],
   ];
   st.forEach(([b, t], i) => {
     const x = 0.6 + i * 4.1;
@@ -729,10 +747,12 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
     ["corrected", "regression", "spec", num(FIXED.regression.compared), CP(FIXED.regression), V(FIXED.regression), `PASS, cov ${FIXED.regression.cov} %`],
     ["delivered", "regression", "DUT", num(ORIG_DUTMODE.compared), "tolerated", V(ORIG_DUTMODE), "PASS (no new behaviour)"],
     ["delivered", "regression", "spec", num(ORIG.compared), CP(ORIG), V(ORIG), `FAIL, ${ORIG.unexplained} unexplained`],
+    ["corrected", "fuzz replay", "spec", num(FILE_FIXED.compared), "-", V(FILE_FIXED), "PASS"],
+    ["delivered", "fuzz replay", "spec", num(FILE_ORIG.compared), "-", V(FILE_ORIG), `FAIL, ${FILE_ORIG.unexplained} unexplained`],
   ];
   s.addTable(rows, {
     x: 0.6, y: 1.7, w: 7.3, colW: [1.05, 1.3, 0.75, 0.9, 1.25, 0.8, 1.25], fontFace: F.body, fontSize: 11.5,
-    border: { type: "solid", pt: 0.5, color: C.line }, rowH: 0.46, valign: "middle", margin: [2, 5, 2, 5],
+    border: { type: "solid", pt: 0.5, color: C.line }, rowH: 0.39, valign: "middle", margin: [2, 5, 2, 5],
   });
   s.addChart(pres.charts.BAR, [
     { name: "delivered RTL", labels: ["DUT-01", "DUT-02", "DUT-03"], values: [+BUGS["DUT-01"], +BUGS["DUT-02"], +BUGS["DUT-03"]] },
@@ -746,12 +766,37 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
   bullets(s, [
     "RTL untouched: hash of the annotated DUT = hash of the delivered dut.sv",
     "The corrected RTL is verilator -Wall clean",
-    "Differential fuzzing: 0 differences between the corrected RTL and the three specification models",
-  ], 0.6, 5.3, 12.1, 1.5, { fs: 14 });
+    "Python fuzzing, 910 k cycles: corrected RTL = both Python spec models; delivered RTL = bug-emulating model (0 differences)",
+  ], 0.6, 5.45, 12.1, 1.4, { fs: 14 });
 }
 
 // =============================================================================
-// 21. Conclusions
+// 21. Mutation testing: checking the checkers
+// =============================================================================
+{
+  const s = content("0x0D", "Checking the checkers: mutation testing", "One bug at a time is injected into the corrected RTL; the bench must detect every one (scripts/mutation_test.py)");
+  card(s, 0.6, 1.75, 4.2, 5.05, C.ink);
+  s.addText(`${mutKilled} / ${MUT.length}`, { x: 0.85, y: 1.9, w: 3.8, h: 1.1, fontFace: F.head, fontSize: 54, bold: true, color: mutKilled === MUT.length ? C.amber : C.bug, margin: 0, isTextBox: true });
+  s.addText("mutants killed", { x: 0.85, y: 3.0, w: 3.8, h: 0.4, fontFace: F.body, fontSize: 18, bold: true, color: C.white, margin: 0, isTextBox: true });
+  bullets(s, [
+    "each mutant re-runs the directed and boundary tests",
+    "killed = at least one oracle fails: scoreboard (SB), checkpoints (CP), spec SVA, white-box SVA (WB)",
+    "the first run left M20 alive (a stray LSB between frames was never checked); TP20 was extended and M20 is now killed",
+  ], 0.85, 3.55, 3.8, 3.2, { fs: 13, color: C.ice });
+  const H = (t) => ({ text: t, options: { bold: true, color: C.white, fill: { color: C.ink } } });
+  const hit = (v) => ({ text: v === "0" || v === "-" ? "" : v, options: { color: C.spec, bold: true, align: "center" } });
+  const rows = [[H("ID"), H("injected bug"), H("SB"), H("CP"), H("SVA"), H("WB")]].concat(MUT.map((r) => [
+    { text: r.id, options: { bold: true, color: r.status === "KILLED" ? C.text : C.bug } },
+    r.desc, hit(r.hits.SB), hit(r.hits.CP), hit(r.hits.SVA), hit(r.hits.WB),
+  ]));
+  s.addTable(rows, {
+    x: 5.05, y: 1.75, w: 7.65, colW: [0.55, 4.7, 0.6, 0.6, 0.6, 0.6], fontFace: F.body, fontSize: 9,
+    border: { type: "solid", pt: 0.5, color: C.line }, rowH: 0.235, valign: "middle", margin: [1, 4, 1, 4],
+  });
+}
+
+// =============================================================================
+// 22. Conclusions
 // =============================================================================
 {
   const s = pres.addSlide();
@@ -761,7 +806,7 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
     [{ text: "The design is not bug-free. ", options: { bold: true, color: C.amber } }, { text: "Its header search can miss every header of a legal stream (DUT-01) and drops alignment on a valid header (DUT-02).", options: { color: C.white } }],
     [{ text: "A scoreboard that copies the RTL cannot find design bugs. ", options: { bold: true, color: C.amber } }, { text: "The spec model with defect triage found all of them, with 0 unexplained mismatches.", options: { color: C.white } }],
     [{ text: "Expected outcomes must be executable. ", options: { bold: true, color: C.amber } }, { text: `${num(cpTotal)} checkpoints turn the test plan into checks.`, options: { color: C.white } }],
-    [{ text: "Evidence, not assumption. ", options: { bold: true, color: C.amber } }, { text: "Three independent models agree; the corrected RTL passes everything.", options: { color: C.white } }],
+    [{ text: "Evidence, not assumption. ", options: { bold: true, color: C.amber } }, { text: `Three independent models agree; the corrected RTL passes everything; ${mutKilled} of ${MUT.length} injected bugs are caught.`, options: { color: C.white } }],
   ], 0.6, 1.9, 7.3, 4.8, { fs: 18, psa: 14 });
   card(s, 8.4, 1.8, 4.3, 4.6, C.ink2);
   s.addText("Next steps", { x: 8.65, y: 1.95, w: 3.9, h: 0.5, fontFace: F.head, fontSize: 20, bold: true, color: C.white, margin: 0, isTextBox: true });
@@ -776,10 +821,10 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
 }
 
 // =============================================================================
-// 22. Appendix: how to run
+// 23. Appendix: how to run
 // =============================================================================
 {
-  const s = content("0x0D", "Appendix: how to run", "Verilator >= 5.030 with z3; Python 3; Icarus Verilog for scripts/");
+  const s = content("0x0E", "Appendix: how to run", "Verilator >= 5.030 with z3; Python 3; Icarus Verilog for scripts/");
   card(s, 0.6, 1.8, 12.1, 3.4, C.ink);
   s.addText([
     "cd sim",
@@ -791,6 +836,7 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
     "make regress                              # full matrix, expected outcomes",
     "python3 ../scripts/fuzz_rtl.py            # differential fuzzing (Icarus)",
     "python3 ../scripts/plot_waves.py          # regenerate the figures",
+    "python3 ../scripts/mutation_test.py       # mutation score of the checkers",
   ].join("\n"), { x: 0.85, y: 1.9, w: 11.6, h: 3.2, fontFace: F.mono, fontSize: 14, color: C.ice, valign: "middle", margin: 0, isTextBox: true });
   text(s, "Documents: docs/BUG_REPORT.md (every defect, reproduction, fix) · docs/VERIFICATION_PLAN.md (rules, test plan, coverage, assertions, results)",
     0.6, 5.5, 12.1, 0.6, { fontSize: 14, color: C.muted });

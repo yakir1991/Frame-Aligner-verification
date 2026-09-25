@@ -26,8 +26,8 @@ bytes.
 
 | ID | Defect | Severity |
 |---|---|---|
-| DUT-01 | A rejected header MSB that is itself a header LSB is thrown away. **Legal streams whose payloads end in `0xAA`/`0x55` are never aligned**, and one bit error can make the loss of alignment permanent | Critical |
-| DUT-02 | Alignment is dropped on the byte that **completes a valid header** (after 46 header-less bytes) | High |
+| DUT-01 | A rejected header MSB that is itself a header LSB is thrown away, so a header after an odd-length run of `0xAA`/`0x55` is missed. **Legal streams whose payloads end in a single `0xAA`/`0x55` are never aligned** from a mid-stream start, and one bit error can make the loss of alignment permanent | Critical |
+| DUT-02 | Alignment is dropped on the byte that **completes a valid header** (after 46 header-less bytes); `frame_detect` is low for 25 cycles | High |
 | DUT-03 | `fr_byte_position` reports "header MSB" after a **rejected** header | Medium |
 | DUT-04/05 | Frame and byte counters wrap around (latent, found by white-box assertions) | Low |
 | DUT-06 | Coding issues (missing default, width mismatch, wrong comments) | Info |
@@ -62,11 +62,12 @@ tb/
   fa_cover.svh            portable cover-property macro
 sim/
   Makefile, files_tb.f    build and run (Verilator; commands for Questa/VCS/Xcelium included)
-  regress.py              regression matrix with expected outcomes
+  regress.py              regression matrix with expected outcomes (incl. fuzz traffic replayed through the bench)
 scripts/
   fa_model.py             two independent Python models of the specification
   fuzz_rtl.py             differential fuzzing of both RTL versions (Icarus Verilog)
-  plot_waves.py           waveform figures of every defect from real simulations
+  plot_waves.py           waveform figures of every defect from real simulations (docs/images/wave_*, slide_*)
+  mutation_test.py        mutation testing: 20 faults injected into the corrected RTL must all be caught
   check_rtl_untouched.py  proves rtl/frame_aligner.sv == delivered DUT
   harness/tb_trace.sv     minimal RTL trace harness used by the scripts
 docs/
@@ -89,29 +90,32 @@ make sim DUT=orig MODEL=dut         # regression mode: only NEW behaviour fails 
 make sim DUT=orig TEST=restart_header VERBOSITY=2    # a single scenario with details
 make regress                        # the whole matrix, each run against its expected outcome
 python3 ../scripts/fuzz_rtl.py      # differential fuzzing of both RTL versions
+python3 ../scripts/mutation_test.py # mutation score of the checkers (slow: 20 rebuilds)
 ```
 
 The end of a run on the delivered RTL (abridged):
 
 ```
  SCOREBOARD (primary model: SPECIFICATION)
-  compared cycles      : 20398
-  spec violations      : 269  (explained by known DUT defects)
-      DUT-01 header LSB lost after a rejected MSB                  137
-      DUT-02 sync dropped on a byte that completes a valid header     3
-      DUT-03 fr_byte_position=1 after a rejected header             266
+  compared cycles      : 21079
+  spec violations      : 253  (explained by known DUT defects)
+      DUT-01 header LSB lost after a rejected MSB                  151  (first after byte 913)
+      DUT-02 sync dropped on a byte that completes a valid header     3  (first after byte 1428)
+      DUT-03 fr_byte_position=1 after a rejected header            250  (first after byte 254)
   UNEXPLAINED mismatch : 0
-  checkpoints          : 3341 passed, 214 failed
- ASSERTIONS  (spec black-box: 519 failures, white-box: 418, testbench: 0)
-  WB_DUT04_LEGAL_NO_WRAP ...  WB_DUT05_NA_NO_WRAP ...
-FA_RESULT verdict=FAIL ... unexplained=0 ... bugs=DUT-01:137,DUT-02:3,DUT-03:266 cov=100.0
+  checkpoints          : 3383 passed, 222 failed
+ ASSERTIONS  (spec black-box: 561 failures, white-box: 477, testbench: 0)
+  WB_DUT04_LEGAL_NO_WRAP   33 failures   WB_DUT05_NA_NO_WRAP   40 failures ...
+FA_RESULT verdict=FAIL ... unexplained=0 ... bugs=DUT-01:151,DUT-02:3,DUT-03:250 cov=100.0
 ```
 
 ## How the environment works
 
 - **Specification model, not an RTL copy.** `tb/fa_ref_model.sv` implements rules
   R1–R7 derived from the spec (VERIFICATION_PLAN §2). Two independent Python models
-  agree with it on every cycle of 900k fuzzed cycles.
+  (a causal model and an offline frame parser) agree with the corrected RTL on
+  every one of ~910k fuzzed cycles, and the SystemVerilog model agrees with it on
+  the same kind of fuzz traffic replayed through the bench and on the whole regression.
 - **Defect triage.** The scoreboard runs the model twice: as the specification, and
   as the delivered design (bug knobs on). Every deviation is either a *known defect*
   (automatically attributed, after which checking continues on the DUT's real path)
@@ -123,8 +127,11 @@ FA_RESULT verdict=FAIL ... unexplained=0 ... bugs=DUT-01:137,DUT-02:3,DUT-03:266
 - **Race-free timing.** Clocking blocks for driving (1 ns skew), reset (falling
   edge) and sampling (`#1step`), and a stream index on a testbench side band.
 - **Coverage of spec features.** 14 coverpoints, including the loss threshold
-  (gaps of 45, 46 and 47 bytes), every restart combination, every cause of loss and
-  reset in every phase. Closed at 100 %.
+  (gaps of 45 and 46 bytes, the last chances), every restart combination, every
+  cause of loss and reset in every phase. Closed at 100 %; every cover property is
+  hit, so the key assertion antecedents are exercised.
+- **Checked checkers.** Mutation testing injects 20 faults into the corrected RTL;
+  MUTATION_SCORE (VERIFICATION_PLAN §8.1).
 
 ## Author
 

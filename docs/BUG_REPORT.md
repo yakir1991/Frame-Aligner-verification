@@ -33,14 +33,14 @@ robustness issue. **Info** = coding quality.
 
 | ID | Title | Severity | Status | Detected by |
 |---|---|---|---|---|
-| [DUT-01](#dut-01--header-lsb-thrown-away-after-a-rejected-msb) | Header LSB thrown away after a rejected MSB. Legal streams whose payloads end in `0xAA`/`0x55` are **never aligned**, and one bit error can lose alignment **permanently** | **Critical** | Extended (student saw `AA AA AF` only) | scoreboard, `SPEC_SYNC_AFTER_3_FRAMES`, `WB_DUT01_NO_LOST_LSB`, TP09/TP23/TP25/TP26 |
-| [DUT-02](#dut-02--alignment-dropped-on-the-byte-that-completes-a-valid-header) | Alignment dropped on the byte that completes a **valid** header (46 header-less bytes + header). Outage lasts 3 frames | **High** | Reclassified (student: "last chance is byte 45") | scoreboard, `SPEC_FD_FALL_WHILE_HUNTING`, `WB_DUT02_NO_CLEAR_IN_FRAME`, TP10/TP23 |
+| [DUT-01](#dut-01--header-lsb-thrown-away-after-a-rejected-msb) | Header LSB thrown away after a rejected MSB. A header that follows an odd-length run of `0xAA`/`0x55` is missed: legal streams whose payloads end in a single `0xAA`/`0x55` are **never aligned** from a mid-stream start, and one bit error can lose alignment **permanently** | **Critical** | Extended (student saw `AA AA AF` only) | scoreboard, `SPEC_SYNC_AFTER_3_FRAMES`, `WB_DUT01_NO_LOST_LSB`, TP09/TP23/TP25/TP26 |
+| [DUT-02](#dut-02--alignment-dropped-on-the-byte-that-completes-a-valid-header) | Alignment dropped on the byte that completes a **valid** header (46 header-less bytes + header). `frame_detect` is low for 25 cycles although every later header is valid | **High** | Reclassified (student: "last chance is byte 45") | scoreboard, `SPEC_FD_FALL_WHILE_HUNTING`, `WB_DUT02_NO_CLEAR_IN_FRAME`, TP10/TP23 |
 | [DUT-03](#dut-03--fr_byte_position--1-after-a-rejected-header) | `fr_byte_position` = 1 ("header MSB") after a **rejected** header | Medium | Reclassified | scoreboard, `SPEC_POS1_AFTER_HEADER`, `SPEC_POS_INCREMENT`, `WB_DUT03_…`, TP05 |
 | [DUT-04](#dut-04--legal_frame_counter-wraps-3--0) | `legal_frame_counter` wraps 3 → 0 on the 4th consecutive frame | Low (latent) | New | `WB_DUT04_LEGAL_NO_WRAP`, TP16 |
 | [DUT-05](#dut-05--na_byte_counter-wraps-63--0) | `na_byte_counter` wraps 63 → 0 on long header-less streams | Low (latent) | New | `WB_DUT05_NA_NO_WRAP`, TP17 |
-| [DUT-06](#dut-06--coding-issues) | Coding issues: no `next_state` default, 4-bit vs 8-bit compare, misleading comments | Info | New | `verilator -Wall`, review |
-| [DUT-07](#dut-07--no-fly-wheel-alignment-is-never-lost-on-slipped-or-mis-sized-frames) | No fly-wheel: after alignment, slipped or mis-sized frames never cause loss of alignment, and a single header error stops position tracking | High (architecture) | Extended (student saw false headers in payloads) | TP19, TP27 (demonstration), `fuzz_rtl.py` |
-| [DUT-08](#dut-08--x-optimistic-header-decode) | X-optimistic header decode: X/Z on `rx_data` is silently treated as "not a header" in RTL simulation, but not in gates | Low | New | `TB_IN_KNOWN`, review |
+| [DUT-06](#dut-06--coding-issues) | Coding issues: no `next_state` default, 4-bit vs 8-bit compare, misleading comments | Info | New | `verilator -Wall` (lint), review |
+| [DUT-07](#dut-07--no-fly-wheel-alignment-is-never-lost-on-slipped-or-mis-sized-frames) | No fly-wheel: after alignment, slipped or mis-sized frames never cause loss of alignment, and a single header error stops position tracking | High (architecture) | Extended (student saw false headers in payloads) | analysis; demonstrated by TP19 and TP27 |
+| [DUT-08](#dut-08--x-optimistic-header-decode) | X-optimistic header decode: X/Z on `rx_data` is silently treated as "not a header" in RTL simulation, but not in gates | Low | New | review, gate-level check (yosys); `TB_IN_KNOWN` keeps X/Z off the input |
 
 ### 1.2 Specification issues
 
@@ -58,7 +58,7 @@ robustness issue. **Info** = coding quality.
 | ID | Area | Title | Severity |
 |---|---|---|---|
 | [TB-01](#tb-01--the-reference-model-was-copied-from-the-rtl) | checker | Reference model copied from the RTL: the scoreboard cannot find design bugs; mismatches were "fixed" in the scoreboard | Critical |
-| [TB-02](#tb-02--the-reference-model-updates-frame_detect-one-byte-early) | checker | That model is also not a faithful copy: `frame_detect` rises and falls one byte early | High |
+| [TB-02](#tb-02--the-reference-model-updates-frame_detect-one-byte-early) | checker | That model is also not a faithful copy: `frame_detect` rises and falls one byte early | Medium |
 | [TB-03](#tb-03--end-of-test-stops-before-the-stimulus-is-driven) | flow | End of test compares driven transactions with `repeat_count`: **117 of 917 queued transactions (12.8 %) are never driven** | High |
 | [TB-04](#tb-04--x-driven-into-the-dut) | stimulus | Directed tests drive X: `frame = new[N]` on a 4-state array, plus `8'hxA` | High |
 | [TB-05](#tb-05--directed-tests-do-not-test-what-they-claim) | stimulus | Directed tests are shuffled, so their preconditions (e.g. "while aligned") do not hold. Several tests spill into the next test, and some cannot produce their planned outcome | High |
@@ -89,7 +89,7 @@ simulations) are in `docs/images/` and are regenerated by `scripts/plot_waves.py
 | | |
 |---|---|
 | Severity | **Critical** |
-| Location | `rtl/frame_aligner.sv:155-160` (FR_HLSB, `else` branch) |
+| Location | `rtl/frame_aligner.sv:157-169` (FR_HLSB, `else` branch, tag `DUT-01`) |
 | Spec | Text p.3 ("constantly monitoring the incoming data stream for a specific header pattern"), p.6 ("in-frame alignment when three consecutive frames with the correct header pattern are detected"); rule R2 |
 | Scenarios | `restart_header` (TP09), `boundary` (TP23), `loss_cause` (TP24), `midstream_entry` (TP25), `error_then_lsb_payloads` (TP26), `header_soup` (TP14) |
 | Figures | `wave_dut01_restart.png`, `wave_dut01_midstream.png` |
@@ -112,29 +112,30 @@ With an even-length run, the pairs cancel out and the header is found.
 
 **System-level impact (new).** The trigger does not need a malformed stream. The
 last payload byte (Pay_9) of a legal frame is `0xAA` or `0x55` with probability 2/256
-for random data, and always for common fill patterns such as `0x55`. In such
-frames, while the aligner is hunting:
+for random data, and always for a frame format whose last payload byte is a fixed
+`0x55`/`0xAA` trailer. (A payload made only of `0x55` gives an even-length run: it
+delays acquisition by at most one frame.) In such frames, while the aligner is hunting:
 - Pay_9 is taken as a header LSB;
 - the real header LSB then fails the MSB check and is thrown away;
 - the real MSB is seen as garbage.
 
 Consequences, measured on the RTL:
 1. **A legal stream is never aligned.** Start-up in the middle of a stream whose
-   payloads end in `0x55`: `frame_detect` stays 0 **forever** (0 of 243 cycles in
-   the probe; TP25 fails all 20 checkpoints). The repaired RTL aligns after 3 frames.
+   payloads end in a single `0x55`: `frame_detect` stays 0 **forever** (TP25: all 20
+   checkpoints fail on the original RTL and pass on the repaired one). The repaired RTL aligns after 3 frames.
 2. **One bit error loses alignment permanently.** While aligned, a single corrupted
    header byte followed by legal frames ending in `0x55`: the aligner can never find
    a header again, and `frame_detect` drops 48 bytes later and never returns (TP26).
 3. **Premature loss after only three bad frames.** If the last payload byte of the
    3rd bad frame is an LSB value, the valid 4th header is swallowed and alignment is
-   lost ("four consecutive frames" violated). This happens in about 1 of 128 cases
-   with random payload.
+   lost ("four consecutive frames" violated). With random payload the byte before
+   the 4th header is `0xAA`/`0x55` in 2 of 256 cases, i.e. about 1 in 128 such sequences.
 4. **Tolerated gap shrinks from 45 to 32 bytes** when one stray LSB precedes the
    header (TP23 with prefix).
-5. With random traffic, acquisition is late by 1–2 frames in ~0.8 % of mid-frame
-   start-ups.
+5. With random traffic, acquisition is late by one frame (rarely two) in 0.8 % of
+   start-ups inside a frame (Python model, 100 000 random streams).
 
-**Fix** (`rtl/frame_aligner_fixed.sv:95-102`): when the MSB check fails and the byte
+**Fix** (`rtl/frame_aligner_fixed.sv:109-115`, tag `FIX DUT-01`): when the MSB check fails and the byte
 is a header LSB, stay in `FR_HLSB`. `header_lsb_samp` already captures the new LSB.
 
 ```verilog
@@ -153,7 +154,7 @@ end
 | | |
 |---|---|
 | Severity | **High** |
-| Location | `rtl/frame_aligner.sv:125-130` (LSB counted in FR_IDLE) and `:266-271` (unqualified clear `na_byte_counter == 6'd47`) |
+| Location | `rtl/frame_aligner.sv:283-284` (unqualified clear `na_byte_counter == 6'd47`, tag `DUT-02`); it interacts with the LSB count in FR_IDLE at `:135-140`, which is itself correct |
 | Spec | Text p.6 ("out-of-frame … when four consecutive frames have incorrect headers"); register table ("when this counter **reaches 48**, frame_detect is reset"); rule R5 |
 | Scenarios | `loss_boundary` (TP10, G = 46), `boundary` (TP23) |
 | Figure | `wave_dut02_sync_drop.png` |
@@ -184,7 +185,7 @@ and it is inconsistent with "reaches 48". Under the look-ahead reading
 ([SPEC-06](#spec-06--the-48th-byte-is-a-header-lsb)) G = 47 would also have to be
 kept, so the DUT is wrong under both readings.
 
-**Fix** (`rtl/frame_aligner_fixed.sv:172-179`): clear only when the byte being
+**Fix** (`rtl/frame_aligner_fixed.sv:185-193`, tag `FIX DUT-02`): clear only when the byte being
 consumed is itself counted:
 
 ```verilog
@@ -198,7 +199,7 @@ else if (na_byte_count_inc && (na_byte_counter == NA_LIMIT)) frame_detect <= 1'b
 | | |
 |---|---|
 | Severity | Medium |
-| Location | `rtl/frame_aligner.sv:155-160` (no `fr_byte_position_rst` on the HLSB → IDLE arc) |
+| Location | `rtl/frame_aligner.sv:157-169` (no `fr_byte_position_rst` on the HLSB → IDLE arc, tag `DUT-03`) |
 | Spec | Port table ("position of the current byte in the header or the payload"), rule R6 |
 | Scenarios | `lsb_ok_msb_bad` (TP05), `corrupted_frames` (TP11), `swapped_header` (TP03) |
 | Figure | `wave_dut03_pos.png` |
@@ -209,7 +210,7 @@ reports 0, so a consumer using `fr_byte_position` to extract header/payload byte
 sees a phantom header. The student recorded it as a spec gap (slide 23). The spec's
 FSM slide also omits the reset on that arc, so the slide should be corrected too.
 
-**Fix** (`rtl/frame_aligner_fixed.sv:105`): `fr_byte_position_rst = 1'b1` on the
+**Fix** (`rtl/frame_aligner_fixed.sv:118`, tag `FIX DUT-03`): `fr_byte_position_rst = 1'b1` on the
 reject arc.
 
 ---
@@ -219,15 +220,15 @@ reject arc.
 | | |
 |---|---|
 | Severity | Low (latent) |
-| Location | `rtl/frame_aligner.sv:233-241` |
+| Location | `rtl/frame_aligner.sv:242-253` (tag `DUT-04`) |
 | Scenario | `long_valid_run` (TP16) |
 | Figure | `wave_dut04_counters.png` |
 
 The 2-bit counter increments on every valid header, so the 4th consecutive frame
 brings it back to 0 (the spec's waveform 2 even draws the wrapped value). Today this
 is invisible on the ports, because `frame_detect` is sticky and the set/clear
-conflict is unreachable. That was proved by exhaustive reasoning and by 900k fuzzed
-cycles against the bug-emulating model. Any change that makes the set condition
+conflict is unreachable. That was shown by case analysis and by ~910k fuzzed
+cycles in which the original RTL matches the bug-emulating Python model exactly. Any change that makes the set condition
 level-sensitive (for example a fly-wheel for DUT-07) would expose it.
 `WB_DUT04_LEGAL_NO_WRAP` catches it at its root cause.
 **Fix:** saturate at 3.
@@ -237,7 +238,7 @@ level-sensitive (for example a fly-wheel for DUT-07) would expose it.
 | | |
 |---|---|
 | Severity | Low (latent) |
-| Location | `rtl/frame_aligner.sv:249-256` |
+| Location | `rtl/frame_aligner.sv:255-268` (tag `DUT-05`) |
 | Scenario | `long_garbage` (TP17) |
 
 After 64 header-less bytes the counter wraps and passes 47 again (harmless today,
@@ -248,10 +249,10 @@ because `frame_detect` is already 0). `WB_DUT05_NA_NO_WRAP` catches it.
 
 | Item | Location |
 |---|---|
-| `next_state` has no default assignment and the `case` has no `default`. It is complete today only because all four encodings are listed; adding a state infers a latch | `rtl/frame_aligner.sv:112-181` |
-| `fr_byte_position == 8'd10` compares a 4-bit value with an 8-bit constant (`verilator -Wall`: WIDTHEXPAND) | `:171` |
-| Comment "expected lsb header pattern" describes the MSB | `:204` |
-| Comment on `na_byte_counter` says it counts "illegal frames"; it counts bytes | `:244` |
+| `next_state` has no default assignment and the `case` has no `default`. It is complete today only because all four encodings are listed; adding a state infers a latch | `rtl/frame_aligner.sv:118-191` |
+| `fr_byte_position == 8'd10` compares a 4-bit value with an 8-bit constant (`verilator -Wall`: WIDTHEXPAND) | `:180` |
+| Comment "expected lsb header pattern" describes the MSB | `:214` |
+| Comment on `na_byte_counter` says it counts "illegal frames"; it counts bytes | `:255` |
 
 The repaired RTL is clean under plain `verilator -Wall` (checked by `make -C sim lint-fixed` and by CI). One justified `lint_off DECLFILENAME` is needed, because both RTL files define `module frame_aligner`.
 No functional lint, latch or reset defect was found (async reset of every flop
@@ -297,7 +298,7 @@ The reference model follows the design slides (hunting), so these scenarios are
 | | |
 |---|---|
 | Severity | Low |
-| Location | `rtl/frame_aligner.sv:112-181, 191-209` |
+| Location | `rtl/frame_aligner.sv:201` and `:220` (decode, tag `DUT-08`), used by the FSM at `:118-191` |
 
 `header_lsb_valid` and `header_msb_valid` become X when `rx_data` is X/Z. `if (X)`
 takes the `else` branch, so in RTL simulation an unknown byte is silently decoded as
@@ -376,8 +377,11 @@ and the DUT, I corrected the scoreboard". A checker built this way can only conf
 that the RTL does what the RTL does. With the legacy random stimulus, DUT-01 and
 DUT-02 are triggered in most runs (thousands of spec-deviating cycles over 200 seeds)
 and produce **zero** scoreboard errors.
-**New environment:** a specification model (rules R1–R7), cross-checked against two
-independent Python models, with the DUT behaviour kept only as a triage model.
+**New environment:** a SystemVerilog specification model (rules R1–R7), with the DUT
+behaviour kept only as a triage model. Two independent Python models (a causal model
+and an offline frame parser) agree with the repaired RTL on ~910k fuzzed cycles, and
+the SystemVerilog model agrees with it on the same kind of fuzz traffic replayed
+through the bench (`+TEST=file`) and on the whole regression.
 
 ### TB-02 – The reference model updates `frame_detect` one byte early
 `frame_aligner_model::step()` updates the counters first and then evaluates the
@@ -450,7 +454,7 @@ In addition:
 **New environment:**
 - 14 black-box and 11 white-box assertions, each tied to a spec rule;
 - failures are counted in the verdict;
-- cover counters prove that no assertion passes vacuously.
+- cover counters show that the key assertion antecedents are exercised (not vacuous).
 
 ### TB-07 – Coverage model cannot close and measures no spec feature
 - `illegal_bins` on `na_byte_position` values 48..63 are **reachable** (e.g. by
@@ -525,7 +529,7 @@ module's own port names, and typed `std::mailbox`.
 | `frame_detect` rises one cycle after 3 headers (slide 21) | Not a defect: matches waveform 1 (R4) |
 | 48 bytes without header ends alignment (slide 22) | Correct in general, **but** see DUT-02 |
 | Position goes to 1 after a rejected header (slide 23) | **DUT-03** |
-| Counter reset/increment timing (slide 24) | Part of DUT-02 (LSB counted, clear unqualified) |
+| Counter reset/increment timing (slide 24) | Part of DUT-02 (the clear is unqualified); counting the header LSB itself follows the register table |
 | "Last opportunity is a header at byte 45" (slides 25–27) | **DUT-02** |
 | LSB twice then MSB is not recognised (slides 28–29) | **DUT-01**, with much larger impact than recorded (legal traffic, permanent loss) |
 | Header inside an illegal payload skips a real header (slide 30) | Consistent with the hunting architecture (TP12); part of DUT-07 |

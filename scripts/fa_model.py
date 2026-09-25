@@ -55,9 +55,15 @@ class CausalModel:
         self.hdrless = (self.hdrless + 1) % 64 if "DUT-02" in self.bugs else min(self.hdrless + 1, 10**6)
 
     def step(self, b):
-        """Consume one byte; returns (pos, fd) = the registered outputs."""
-        na_before, counted = self.hdrless, False
-        set_now, self.pending = self.pending, False
+        """Consume one byte; returns (pos, fd) = the registered outputs.
+
+        State: phase (HUNT / GOT_LSB / IN_FRAME), cand = the header LSB waiting
+        for its MSB, idx = index of the current byte inside the frame,
+        consec = consecutive valid frames, hdrless = header-less bytes counted
+        since the last frame, pending = frame_detect rises on the next byte.
+        """
+        na_before, counted = self.hdrless, False     # counter before this byte
+        set_now, self.pending = self.pending, False   # R4: rise decided last byte
         fd_next = self.fd
         if self.phase == self.IN_FRAME:                       # R3 payload
             self.idx += 1
@@ -89,12 +95,16 @@ class CausalModel:
                     self.phase = self.HUNT
                     self.pos = 1 if "DUT-03" in self.bugs else 0
                 self._count()
-        if "DUT-02" in self.bugs:                             # R5 loss
+        # R5 loss of alignment.  Spec: only a byte that is itself counted can
+        # clear frame_detect, on the 48th count.  DUT-02 emulation: the RTL
+        # clears whenever the registered counter already shows 47, whatever
+        # the current byte is (even the MSB that completes a valid header).
+        if "DUT-02" in self.bugs:
             if na_before == LOSS_BYTES - 1:
                 fd_next = 0
         elif counted and self.hdrless >= LOSS_BYTES:
             fd_next = 0
-        if set_now:
+        if set_now:                                           # set has priority
             fd_next = 1
         self.fd = fd_next
         return self.pos, self.fd
@@ -112,7 +122,15 @@ class CausalModel:
 
 
 def _offline_segment(s, lsb_counts=True):
-    """Frame parser for one reset-free segment.  Returns (fd, pos) lists."""
+    """Frame parser for one reset-free segment.  Returns (fd, pos) lists.
+
+    Works on the whole segment at once (non-causal), in three passes:
+      1. find every frame: scan byte by byte; a header (LSB + matching MSB)
+         claims the next 12 bytes, anything else advances by one byte;
+      2. mark the bytes covered by a frame and their positions 0..11, and find
+         where frame_detect rises (payload byte 0 of the 3rd back-to-back frame);
+      3. walk the bytes, counting header-less bytes, to find where it falls.
+    """
     n = len(s)
     frames, i = [], 0
     while i < n:                                  # every frame in the stream
