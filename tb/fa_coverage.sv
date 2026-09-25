@@ -29,8 +29,10 @@
 //  5.x), so the model is implemented twice:
 //    * fa_cov_point / fa_coverage : a portable collector (associative arrays),
 //      used for the report on every simulator;
-//    * fa_covergroups             : the same points as native covergroups for
-//      tools that support them (merging, UCDB/VDB databases).
+//    * fa_covergroups             : the per-byte points (CP01-CP05, CP07-CP10,
+//      CP12) as native covergroups, for tools that support them (merging,
+//      UCDB/VDB databases).  The portable collector is the reference metric:
+//      it also covers CP06, CP11, CP13 and CP14.
 //==============================================================================
 
 //------------------------------------------------------------------------------
@@ -81,7 +83,7 @@ class fa_cov_point;
 endclass
 
 //------------------------------------------------------------------------------
-// Native covergroups (same points; used by simulators that support them).
+// Native covergroups (per-byte subset of the points; see the header).
 //------------------------------------------------------------------------------
 class fa_covergroups;
   covergroup cg_step with function sample(fa_step_info_t si, rx_class_e rc);
@@ -100,7 +102,8 @@ class fa_covergroups;
     cp_sync     : coverpoint si.fd_before;
     cp_arc_sync : cross cp_arc, cp_sync;
     cp_pos      : coverpoint si.pos_after { bins pos[] = {[0:11]}; illegal_bins bad = {[12:15]}; }
-    cp_pos_sync : cross cp_pos, cp_sync;
+    cp_sync_after : coverpoint si.fd_after;
+    cp_pos_sync : cross cp_pos, cp_sync_after;          // CP09: position x frame_detect
     cp_event    : coverpoint {si.set_event, si.loss_event} { bins gained = {2'b10}; bins lost = {2'b01}; }
     cp_loss     : coverpoint si.loss_cause iff (si.loss_event) {
       bins plain = {LOSS_PLAIN_BYTE}; bins cand_lsb = {LOSS_CANDIDATE_LSB};
@@ -116,7 +119,7 @@ class fa_covergroups;
       bins back2back = {0}; bins g1_11 = {[1:11]}; bins g12_23 = {[12:23]}; bins g24_35 = {[24:35]};
       bins g36_44 = {[36:44]}; bins g45 = {45}; bins g46_last_chance = {46};
     }
-    cp_payload_hdr : coverpoint si.payload_header_seen { bins seen = {1}; }
+    cp_payload_hdr : coverpoint si.fd_before iff (si.payload_header_seen);   // CP12
   endgroup
 
   function new();

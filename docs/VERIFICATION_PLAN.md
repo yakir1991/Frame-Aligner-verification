@@ -107,7 +107,7 @@ All three agree on every cycle of 900k fuzzed cycles.
 | `tb/monitor_in.sv`, `tb/monitor_out.sv` | Passive monitors. Samples are numbered so the scoreboard can prove lock-step. |
 | `tb/fa_ref_model.sv` | Specification model (R1–R7) with bug-emulation knobs `DUT-01..03`. |
 | `tb/scoreboard.sv` | Cycle-accurate comparison against two model instances: spec (knobs off) and DUT (knobs on). Every mismatch is classified as **known defect** (and attributed to the knob that fired) or **unexplained**. Also X/Z, reset values, checkpoints. |
-| `tb/fa_coverage.sv` | Functional coverage, as a portable collector plus equivalent native covergroups. |
+| `tb/fa_coverage.sv` | Functional coverage: a portable collector (the reference metric) plus native covergroups for the per-byte points. |
 | `tb/fa_spec_sva.sv` | Black-box assertions (ports only). Every property is one of the rules R1–R7. |
 | `tb/fa_whitebox_sva.sv` | White-box assertions on the FSM and counters. Catches latent defects (DUT-04/05) that never reach the ports. |
 | `tb/environment.sv`, `tb/fa_test.sv`, `tb/tb_top.sv` | Build and connect everything, handle plusargs, write the final report and the machine-readable `FA_RESULT` line. |

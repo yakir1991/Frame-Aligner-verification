@@ -8,6 +8,11 @@
 //==============================================================================
 package fa_pkg;
 
+  // Explicit time units: the package contains delays (#1) and prints $time, so
+  // its units must not depend on file order or on the tool's default.
+  timeunit 1ns;
+  timeprecision 1ps;
+
   `include "fa_types.svh"          // constants, bug ids, logging, SVA registry
   `include "fa_ref_model.sv"       // specification reference model (+ bug knobs)
   `include "transaction.sv"        // stimulus item (spec "frame_item")

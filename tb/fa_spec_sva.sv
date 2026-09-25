@@ -11,6 +11,8 @@
 //  Sampling reminder: at a rising edge the properties see the values stable
 //  just before the edge.  fr_byte_position / frame_detect sampled at edge t
 //  describe the byte sampled on rx_data at edge t-1, i.e. $past(rx_data, 1).
+//  Action blocks run in the Reactive region, after the flops have updated, so
+//  messages print $sampled()/$past() values, never the raw signals.
 //
 //  Legacy assertions replaced (see docs/BUG_REPORT.md, TB-07):
 //    * check_frame_detect_after_3_headers used ##0 between frames (sequence
@@ -71,7 +73,7 @@ module fa_spec_sva (
   // fr_byte_position (R3, R6)
   //---------------------------------------------------------------------------
   SPEC_POS_RANGE: assert property (@(posedge clk) disable iff (reset) fr_byte_position <= 4'd11)
-    else fa_sva_fail("SPEC_POS_RANGE", $sformatf("fr_byte_position=%0d outside 0..11", fr_byte_position));
+    else fa_sva_fail("SPEC_POS_RANGE", $sformatf("fr_byte_position=%0d outside 0..11", $sampled(fr_byte_position)));
 
   // Inside a frame the position advances by one per byte.  (Fails on DUT-03:
   // after a rejected header the DUT shows 1 and then 0.)
@@ -100,7 +102,7 @@ module fa_spec_sva (
   // Alignment rises one byte after the 3rd header MSB, i.e. on payload byte 0.
   SPEC_FD_RISE_POSITION: assert property (@(posedge clk) disable iff (reset)
       $rose(frame_detect) |-> fr_byte_position == 4'd2)
-    else fa_sva_fail("SPEC_FD_RISE_POSITION", $sformatf("frame_detect rose at position %0d (expected 2)", fr_byte_position));
+    else fa_sva_fail("SPEC_FD_RISE_POSITION", $sformatf("frame_detect rose at position %0d (expected 2)", $sampled(fr_byte_position)));
 
   // ... and only after three consecutive frames (positions 1..11, 1..11, 1).
   SPEC_FD_RISE_3_FRAMES: assert property (@(posedge clk) disable iff (reset)
@@ -124,12 +126,12 @@ module fa_spec_sva (
   SPEC_FD_FALL_WHILE_HUNTING: assert property (@(posedge clk) disable iff (reset)
       $fell(frame_detect) |-> fr_byte_position == 4'd0)
     else fa_sva_fail("SPEC_FD_FALL_WHILE_HUNTING",
-                     $sformatf("frame_detect fell at position %0d, i.e. inside a validated header/frame", fr_byte_position));
+                     $sformatf("frame_detect fell at position %0d, i.e. inside a validated header/frame", $sampled(fr_byte_position)));
 
   // ... and it is the 48th consecutive hunting byte.
   SPEC_FD_FALL_AFTER_48: assert property (@(posedge clk) disable iff (reset)
       $fell(frame_detect) |-> zrun >= 8'd48)
-    else fa_sva_fail("SPEC_FD_FALL_AFTER_48", $sformatf("frame_detect fell after only %0d hunting bytes", zrun));
+    else fa_sva_fail("SPEC_FD_FALL_AFTER_48", $sformatf("frame_detect fell after only %0d hunting bytes", $sampled(zrun)));
 
   // Alignment never drops while a frame is being received.
   SPEC_FD_HOLD_IN_FRAME: assert property (@(posedge clk) disable iff (reset)

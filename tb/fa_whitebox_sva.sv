@@ -49,7 +49,7 @@ module fa_whitebox_sva (
 
   WB_DATA_POSITION: assert property (@(posedge clk) disable iff (reset)
       current_state == FR_DATA |-> fr_byte_position inside {[4'd2:4'd10]})
-    else fa_sva_fail("WB_DATA_POSITION", $sformatf("FR_DATA with fr_byte_position=%0d", fr_byte_position));
+    else fa_sva_fail("WB_DATA_POSITION", $sformatf("FR_DATA with fr_byte_position=%0d", $sampled(fr_byte_position)));
 
   WB_TRIGGERS_EXCLUSIVE: assert property (@(posedge clk) disable iff (reset)
       !(legal_frame_counter_rst && legal_frame_counter_inc) && !(na_byte_count_rst && na_byte_count_inc))
@@ -57,7 +57,7 @@ module fa_whitebox_sva (
 
   WB_LSB_SAMP_LEGAL: assert property (@(posedge clk) disable iff (reset)
       header_lsb_samp inside {8'h00, 8'hAA, 8'h55})
-    else fa_sva_fail("WB_LSB_SAMP_LEGAL", $sformatf("header_lsb_samp=%02h", header_lsb_samp));
+    else fa_sva_fail("WB_LSB_SAMP_LEGAL", $sformatf("header_lsb_samp=%02h", $sampled(header_lsb_samp)));
 
   //---------------------------------------------------------------------------
   // Root-cause checks for the defects found by verification

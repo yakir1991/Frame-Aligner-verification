@@ -58,13 +58,17 @@ interface frame_inf (input logic clk);
     input reset, rx_data, fr_byte_position, frame_detect, tb_byte_idx, tb_byte_valid;
   endclocking
 
-  // Modports document the direction of every signal for each user.
+  // Modports document the direction of every signal for each user.  The
+  // classes hold an unrestricted handle (virtual frame_inf) so that one handle
+  // can be shared by all components; the modports are the documented contract
+  // of what each component drives or observes.
   modport DUT (input clk, reset, rx_data, output fr_byte_position, frame_detect);
   // Portability rule followed by the TB: a process synchronises ONLY on
   // clocking-block events.  Waiting on @(posedge clk) and then on @(drv_cb)
   // can resume twice in the same time step (the clocking event is triggered
   // after the raw edge), which silently shifts the stream by one byte.
-  modport DRV (clocking drv_cb, clocking rst_cb, output reset, input clk);
+  // (reset_dut() also initialises rx_data / tb_byte_* directly at time 0.)
+  modport DRV (clocking drv_cb, clocking rst_cb, output reset, rx_data, tb_byte_idx, tb_byte_valid);
   modport MON (clocking mon_cb, input clk);
 
 endinterface

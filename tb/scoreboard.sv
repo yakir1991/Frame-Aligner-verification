@@ -162,7 +162,10 @@ class scoreboard;
     dut_m.step(i.rx_data);
     pending_bugs |= dut_m.last.bug_hits;
     if (spec_m.same_state(dut_m)) pending_bugs = '0;   // divergence had no effect
-    cov.sample_step(primary_is_dut ? dut_m.last : spec_m.last);
+    // Coverage is always sampled from the specification model's view (in
+    // DUT mode it follows the DUT's path through the re-synchronisation), so
+    // spec-level bins such as "loss on a valid header" never appear.
+    cov.sample_step(spec_m.last);
     prev_in = i;
   endfunction
 
