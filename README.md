@@ -123,7 +123,7 @@ FA_RESULT verdict=FAIL ... unexplained=0 ... bugs=DUT-01:151,DUT-02:3,DUT-03:250
 - **Three independent oracles.**
   - the cycle-accurate model;
   - test-plan checkpoints ("after byte N, frame_detect must be 1") at exact byte positions;
-  - 25 assertions (14 black-box spec rules and 11 white-box micro-architecture checks).
+  - 26 assertions (15 black-box spec rules and 11 white-box micro-architecture checks).
 - **Race-free timing.** Clocking blocks for driving (1 ns skew), reset (falling
   edge) and sampling (`#1step`), and a stream index on a testbench side band.
 - **Coverage of spec features.** 14 coverpoints, including the loss threshold
@@ -131,7 +131,8 @@ FA_RESULT verdict=FAIL ... unexplained=0 ... bugs=DUT-01:151,DUT-02:3,DUT-03:250
   cause of loss and reset in every phase. Closed at 100 %; every cover property is
   hit, so the key assertion antecedents are exercised.
 - **Checked checkers.** Mutation testing injects 20 faults into the corrected RTL;
-  MUTATION_SCORE (VERIFICATION_PLAN §8.1).
+  20 of 20 are caught, each port-visible one by at least two
+  independent oracles (VERIFICATION_PLAN §8.1).
 
 ## Author
 

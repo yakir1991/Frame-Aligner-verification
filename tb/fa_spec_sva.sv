@@ -14,7 +14,7 @@
 //  Action blocks run in the Reactive region, after the flops have updated, so
 //  messages print $sampled()/$past() values, never the raw signals.
 //
-//  Legacy assertions replaced (see docs/BUG_REPORT.md, TB-07):
+//  Legacy assertions replaced (see docs/BUG_REPORT.md, TB-06):
 //    * check_frame_detect_after_3_headers used ##0 between frames (sequence
 //      fusion: frame 2 would have to start on the last byte of frame 1), so it
 //      almost never matched and its consequent timing was also wrong;
@@ -132,6 +132,15 @@ module fa_spec_sva (
   SPEC_FD_FALL_AFTER_48: assert property (@(posedge clk) disable iff (reset)
       $fell(frame_detect) |-> zrun >= 8'd48)
     else fa_sva_fail("SPEC_FD_FALL_AFTER_48", $sformatf("frame_detect fell after only %0d hunting bytes", $sampled(zrun)));
+
+  // ... and it MUST drop by then: once 48 consecutive hunting bytes have been
+  // consumed, frame_detect is 0.  (The two properties above only forbid an
+  // early loss; without this one a design that never loses alignment, or
+  // loses it too late, passes every black-box assertion -- found by mutation
+  // testing, mutants M07 and M14 in scripts/mutation_test.py.)
+  SPEC_FD_LOST_AFTER_48: assert property (@(posedge clk) disable iff (reset)
+      zrun >= 8'd48 |-> !frame_detect)
+    else fa_sva_fail("SPEC_FD_LOST_AFTER_48", $sformatf("frame_detect still 1 after %0d hunting bytes", $sampled(zrun)));
 
   // Alignment never drops while a frame is being received.
   SPEC_FD_HOLD_IN_FRAME: assert property (@(posedge clk) disable iff (reset)

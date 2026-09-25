@@ -343,7 +343,7 @@ function box(s, x, y, w, h, label, o = {}) {
     ["Expected outcomes", "not checked", `${num(cpTotal)} checkpoints at exact byte positions`],
     ["Stimulus", "X bytes; 117 of 917 items never driven; preconditions shuffled away", "2-state; everything driven; every scenario starts from reset"],
     ["Timing", "program-block dependent; reset released on a clock edge", "clocking blocks; reset on the falling edge"],
-    ["Assertions", "3 of 3 vacuous or false; failures not counted", "25 rule-based assertions, counted; cover hits show they are exercised"],
+    ["Assertions", "3 of 3 vacuous or false; failures not counted", "26 rule-based assertions, counted; cover hits show they are exercised"],
     ["Coverage", "reachable illegal bins, unreachable bins, no spec features", "14 spec-feature coverpoints, closed at 100 %"],
   ];
   const hdr = [
@@ -430,7 +430,7 @@ function box(s, x, y, w, h, label, o = {}) {
   const O = [
     ["Reference model", "every byte, every cycle", "cycle-accurate compare of frame_detect and fr_byte_position against R1-R7", C.spec],
     ["Checkpoints", `${num(cpTotal)} expected outcomes`, "the test plan's \"expected outcome\" column, checked at the exact byte (e.g. \"aligned after 47 header-less bytes, lost on the 48th\")", C.fix],
-    ["Assertions", "14 black-box + 11 white-box", "spec rules on the ports; FSM and counter checks inside the DUT catch latent defects the ports never show", C.bug],
+    ["Assertions", "15 black-box + 11 white-box", "spec rules on the ports; FSM and counter checks inside the DUT catch latent defects the ports never show", C.bug],
   ];
   O.forEach(([h, k, d, col], i) => {
     const x = 0.6 + i * 4.1;
@@ -742,16 +742,16 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
   const rows = [
     [H("RTL"), H("test"), H("model"), H("cycles"), H("checkpoints"), H("verdict"), H("expected")],
     ["corrected", "directed", "spec", num(FIXED.directed.compared), CP(FIXED.directed), V(FIXED.directed), "PASS"],
-    ["corrected", "boundary sweep", "spec", num(FIXED.boundary.compared), CP(FIXED.boundary), V(FIXED.boundary), "PASS"],
+    ["corrected", "boundary", "spec", num(FIXED.boundary.compared), CP(FIXED.boundary), V(FIXED.boundary), "PASS"],
     ["corrected", "random", "spec", num(FIXED.random.compared), CP(FIXED.random), V(FIXED.random), "PASS"],
     ["corrected", "regression", "spec", num(FIXED.regression.compared), CP(FIXED.regression), V(FIXED.regression), `PASS, cov ${FIXED.regression.cov} %`],
-    ["delivered", "regression", "DUT", num(ORIG_DUTMODE.compared), "tolerated", V(ORIG_DUTMODE), "PASS (no new behaviour)"],
+    ["delivered", "regression", "DUT", num(ORIG_DUTMODE.compared), "tolerated", V(ORIG_DUTMODE), "PASS (nothing new)"],
     ["delivered", "regression", "spec", num(ORIG.compared), CP(ORIG), V(ORIG), `FAIL, ${ORIG.unexplained} unexplained`],
     ["corrected", "fuzz replay", "spec", num(FILE_FIXED.compared), "-", V(FILE_FIXED), "PASS"],
     ["delivered", "fuzz replay", "spec", num(FILE_ORIG.compared), "-", V(FILE_ORIG), `FAIL, ${FILE_ORIG.unexplained} unexplained`],
   ];
   s.addTable(rows, {
-    x: 0.6, y: 1.7, w: 7.3, colW: [1.05, 1.3, 0.75, 0.9, 1.25, 0.8, 1.25], fontFace: F.body, fontSize: 11.5,
+    x: 0.6, y: 1.7, w: 7.3, colW: [0.95, 1.1, 0.65, 0.85, 1.15, 0.7, 1.9], fontFace: F.body, fontSize: 11.5,
     border: { type: "solid", pt: 0.5, color: C.line }, rowH: 0.39, valign: "middle", margin: [2, 5, 2, 5],
   });
   s.addChart(pres.charts.BAR, [
@@ -781,8 +781,10 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
   bullets(s, [
     "each mutant re-runs the directed and boundary tests",
     "killed = at least one oracle fails: scoreboard (SB), checkpoints (CP), spec SVA, white-box SVA (WB)",
-    "the first run left M20 alive (a stray LSB between frames was never checked); TP20 was extended and M20 is now killed",
-  ], 0.85, 3.55, 3.8, 3.2, { fs: 13, color: C.ice });
+    "M20 survived the first run (no stray LSB between frames): TP20 extended",
+    "M07 / M14 escaped every black-box assertion (only an early loss was checked): SPEC_FD_LOST_AFTER_48 added",
+    "M04, M05, M19 are invisible on the ports: only white-box assertions can catch them",
+  ], 0.85, 3.5, 3.8, 3.25, { fs: 12, color: C.ice, psa: 4 });
   const H = (t) => ({ text: t, options: { bold: true, color: C.white, fill: { color: C.ink } } });
   const hit = (v) => ({ text: v === "0" || v === "-" ? "" : v, options: { color: C.spec, bold: true, align: "center" } });
   const rows = [[H("ID"), H("injected bug"), H("SB"), H("CP"), H("SVA"), H("WB")]].concat(MUT.map((r) => [

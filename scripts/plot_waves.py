@@ -212,7 +212,7 @@ def scenarios(compact):
     figure_("dut04_counters", "DUT-04: legal_frame_counter wraps 3 -> 0 on the 4th consecutive frame (latent)",
            W(s), (22, 52),
            "Invisible on the ports today (frame_detect is sticky) -- found by the white-box assertion WB_DUT04_LEGAL_NO_WRAP.",
-           show_counters=True, cwin=(30, 46))
+           show_counters=True, cwin=(26, 50))
     # DUT-07: slipped frames keep alignment forever
     s = [0x00] + sync + sum([[0x00] + frame(1 + (i % 2)) for i in range(4)], [])
     figure_("dut07_slip", "DUT-07 (architecture): 13-byte frames after alignment -- frame_detect never drops",

@@ -452,7 +452,7 @@ In addition:
   have run at all.
 
 **New environment:**
-- 14 black-box and 11 white-box assertions, each tied to a spec rule;
+- 15 black-box and 11 white-box assertions, each tied to a spec rule;
 - failures are counted in the verdict;
 - cover counters show that the key assertion antecedents are exercised (not vacuous).
 
