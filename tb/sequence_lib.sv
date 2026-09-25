@@ -23,7 +23,7 @@
 //    TP07 msb_in_payload        header MSB bytes inside payloads              legacy: test_msb_and_lsb_and_valid_header_in_middle_frame
 //    TP08 header_in_payload     full headers inside payloads are ignored      legacy: (same)
 //    TP09 restart_header        stray LSB(s) right before a header  (DUT-01)  legacy: test_47_bytes (first part)
-//    TP10 loss_boundary         45/46/47/48 header-less bytes      (DUT-02)   legacy: test_45/46/47/48_bytes
+//    TP10 loss_boundary         44..48 header-less bytes           (DUT-02)   legacy: test_45/46/47/48_bytes
 //    TP11 corrupted_frames      1..4 corrupted frames while aligned (DUT-03)  new
 //    TP12 header_in_illegal     header inside an illegal frame                legacy: test_illegal_headers_with_a_valid_header_in_the_middle_frame(_10_clock)
 //    TP13 frames_in_illegal     3 frames inside an illegal frame              legacy: test_3_valid_frames_in_the_invalid_frame
@@ -32,7 +32,7 @@
 //    TP16 long_valid_run        10 consecutive frames              (DUT-04)   new
 //    TP17 long_garbage          80 header-less bytes               (DUT-05)   new
 //    TP18 reset_every_phase     async reset while hunting / LSB / in frame, aligned or not
-//    TP19 false_lock_in_sync    corrupted header + header in payload (SPEC-03) new
+//    TP19 false_lock_in_sync    corrupted header + header in payload (DUT-07) new
 //    TP20 consecutive_rule      a single hunting byte breaks the frame chain  new
 //    TP21 header_across_items   header split across two stimulus items        new
 //    TP22 illegal_lengths       illegal frames of 2..49 bytes while aligned   new
@@ -422,7 +422,7 @@ class fa_sequence_lib;
   // TP14 -- frames made of random header bytes only (model-checked).
   task header_soup();
     byte unsigned vals[4] = '{HEAD1_LSB, HEAD1_MSB, HEAD2_LSB, HEAD2_MSB};
-    start("header_soup", "3 x (DE 00 + 47 random header bytes); checked by the model");
+    start("header_soup", "6 x (DE 00 + 47 random header bytes); checked by the model");
     repeat (6) begin
       byte_q_t q = '{8'hDE, 8'h00};
       repeat (47) q.push_back(vals[$urandom_range(0, 3)]);
@@ -522,7 +522,7 @@ class fa_sequence_lib;
     frame_checked(0, 1, 1, 1, 1, "next frame");
   endtask
 
-  // TP19 -- SPEC-03 demonstration: no fly-wheel.  While aligned, a corrupted
+  // TP19 -- DUT-07 demonstration (SPEC-02): no fly-wheel.  While aligned, a corrupted
   // header followed by a header pattern inside that payload makes the aligner
   // lock onto a false frame boundary without dropping frame_detect.  This
   // matches the specified hunting behaviour (so it is not flagged as a bug)
@@ -534,7 +534,7 @@ class fa_sequence_lib;
     q = broken_frame(HEAD1_LSB, 8'h01);
     q[4] = HEAD2_LSB; q[5] = HEAD2_MSB;
     send_part(q, 6, "corrupted header + false header");
-    gen.expect_pos(1, "aligner locked onto the false header (limitation SPEC-03)");
+    gen.expect_pos(1, "aligner locked onto the false header (limitation DUT-07)");
     gen.expect_fd(1, "frame_detect stays high");
     send(q, "rest of the corrupted frame");
     q = frame(1);

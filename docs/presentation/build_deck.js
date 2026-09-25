@@ -510,9 +510,8 @@ tpSlide("0x08", "Test plan (2/2)", TP2);
   s.addText([{ text: "100 % ", options: { bold: true, color: C.fix, fontSize: 24 } }, { text: "of 14 coverpoints (102 bins) in the regression; every cover property hit", options: { fontSize: 13 } }],
     { x: 0.8, y: 6.0, w: 6.0, h: 0.8, fontFace: F.body, valign: "middle", margin: 0, isTextBox: true });
   // assertion failures on the delivered RTL (native chart)
-  const names = ["SPEC_POS1_AFTER_HEADER", "SPEC_POS_INCREMENT", "SPEC_SYNC_AFTER_3_FRAMES", "SPEC_FD_FALL_AFTER_48",
-                 "SPEC_FD_FALL_WHILE_HUNTING", "WB_DUT01_NO_LOST_LSB", "WB_DUT02_NO_CLEAR_IN_FRAME",
-                 "WB_DUT03_POS_RESET_ON_REJECT", "WB_DUT04_LEGAL_NO_WRAP", "WB_DUT05_NA_NO_WRAP"];
+  // Every assertion that failed on the delivered RTL (read from the log).
+  const names = Object.keys(ORIG_SVA).filter((n) => ORIG_SVA[n] > 0).sort();
   s.addChart(pres.charts.BAR, [{ name: "failures", labels: names, values: names.map((n) => ORIG_SVA[n] || 0) }], {
     x: 7.2, y: 1.6, w: 5.5, h: 5.2, barDir: "bar", chartColors: [C.bug],
     showTitle: true, title: "Assertion failures on the delivered RTL (corrected RTL: 0)", titleFontSize: 13, titleColor: C.text, titleFontFace: F.body,

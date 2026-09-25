@@ -12,6 +12,7 @@
 //    +SEED=<n>           seed of the stimulus random generator
 //    +VERBOSITY=<0..3>   log detail (default 1)
 //    +DUT_NAME=<text>    label printed in the report
+//    +STIM_FILE=<path>   raw stimulus for +TEST=file
 //    +TIMEOUT_CYCLES=<n> watchdog (default 2,000,000 cycles)
 //    +COV_BINS           print every coverage bin
 //==============================================================================
@@ -32,6 +33,7 @@ program automatic fa_test (frame_inf vif);
     if ($value$plusargs("TEST=%s", s))      env.gen.test_name = s;
     if ($value$plusargs("NUM_ITEMS=%d", n)) env.gen.num_random_items = n;
     if ($value$plusargs("DUT_NAME=%s", s))  env.dut_name = s;
+    if ($value$plusargs("STIM_FILE=%s", s)) env.gen.stim_file = s;
     if ($value$plusargs("TIMEOUT_CYCLES=%d", n)) timeout_cycles = n;
     if ($test$plusargs("COV_BINS"))         env.show_cov_bins = 1;
     if ($value$plusargs("MODEL=%s", s)) begin

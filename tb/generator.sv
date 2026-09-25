@@ -11,6 +11,11 @@
 //    directed             : every directed scenario, each starting from reset
 //    boundary             : systematic sweep of the 48-byte loss threshold
 //    random               : constrained-random items (+NUM_ITEMS=<n>, default 400)
+//    file                 : replay a raw stimulus file (+STIM_FILE=<path>), one
+//                           hex word per line: bit 8 = reset cycle, bits 7:0 =
+//                           byte (the format written by scripts/fuzz_rtl.py
+//                           --write-stim), so the SV reference model can be
+//                           cross-checked on the fuzzing traffic
 //    <scenario name>      : a single directed scenario (see sequence_lib.sv)
 //
 //  Legacy defects fixed here:
@@ -32,6 +37,7 @@ class generator;
 
   string       test_name        = "regression";
   int unsigned num_random_items = 400;
+  string       stim_file        = "";
 
   int unsigned bytes_queued;     // stream index of the next byte
   int unsigned items_queued;
@@ -125,6 +131,37 @@ class generator;
     repeat (num_random_items) put_random_item();
   endtask
 
+  // Replay a raw stimulus file.  Consecutive reset words become one reset
+  // item; bytes are sent in chunks of up to 4096.
+  task run_file();
+    int          fd, code;
+    int unsigned w, n_words, pending_reset;
+    byte_q_t     q;
+    begin_scenario("file", {"raw stimulus from ", stim_file});
+    put_reset(2, "file: start from reset");
+    fd = $fopen(stim_file, "r");
+    if (fd == 0) begin
+      fa_error("GENERATOR", $sformatf("cannot open +STIM_FILE=%s", stim_file));
+      return;
+    end
+    while (1) begin
+      code = $fscanf(fd, "%h", w);
+      if (code != 1) break;
+      n_words++;
+      if (w[8]) begin
+        if (q.size() > 0) begin put_bytes(q, "file bytes"); q.delete(); end
+        pending_reset++;
+      end else begin
+        if (pending_reset > 0) begin put_reset(pending_reset, "file: reset"); pending_reset = 0; end
+        q.push_back(w[7:0]);
+        if (q.size() == 4096) begin put_bytes(q, "file bytes"); q.delete(); end
+      end
+    end
+    if (q.size() > 0) put_bytes(q, "file bytes");
+    $fclose(fd);
+    fa_info(1, "GENERATOR", $sformatf("read %0d words from %s", n_words, stim_file));
+  endtask
+
   task run();
     bit found;
     case (test_name)
@@ -136,10 +173,11 @@ class generator;
       "directed": lib.run_all_directed();
       "boundary": lib.boundary_sweep();
       "random":   run_random();
+      "file":     run_file();
       default: begin
         lib.run_by_name(test_name, found);
         if (!found) begin
-          fa_error("GENERATOR", $sformatf("unknown test '%s'. Known: regression directed boundary random %s",
+          fa_error("GENERATOR", $sformatf("unknown test '%s'. Known: regression directed boundary random file %s",
                                           test_name, lib.names2str()));
         end
       end

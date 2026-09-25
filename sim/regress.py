@@ -43,6 +43,11 @@ def parse_result(text):
     return dict(kv.split("=", 1) for kv in m.group(1).split())
 
 
+def cover_counts(text):
+    """Cover-property hit counts from the report (every cover is registered)."""
+    return {m.group(1): int(m.group(2)) for m in re.finditer(r"^\s+(C_\w+)\s+(\d+)\s*$", text, re.M)}
+
+
 def sva_counts(text):
     return {m.group(1): int(m.group(2))
             for m in re.finditer(r"^\s+((?:SPEC|WB|TB)_\w+)\s+(\d+)\s+failures", text, re.M)}
@@ -61,6 +66,7 @@ def main():
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--items", type=int, default=400)
     ap.add_argument("--quick", action="store_true", help="1 seed, 200 random items")
+    ap.add_argument("--fuzz-streams", type=int, default=3000, help="streams replayed by +TEST=file")
     args = ap.parse_args()
     if args.quick:
         args.seeds, args.items = 1, 200
@@ -79,7 +85,13 @@ def main():
     build("fixed")
     build("orig")
 
-    runs = []
+    # Replay the differential-fuzzing traffic through the SystemVerilog bench,
+    # so the SV reference model is cross-checked on the same streams as the
+    # Python models (scripts/fuzz_rtl.py).
+    stim = os.path.abspath("logs/fuzz_stim.hex")
+    sh(f"python3 ../scripts/fuzz_rtl.py --streams {args.fuzz_streams} --seed 1 --write-stim {stim} --stim-only")
+
+    runs = [("fixed", "spec", "file", 1, "PASS"), ("orig", "spec", "file", 1, "FAIL-UNEXPLAINED-0")]
     for seed in range(1, args.seeds + 1):
         for test in ("directed", "boundary", "random", "regression"):
             runs.append(("fixed", "spec", test, seed, "PASS"))
@@ -89,8 +101,9 @@ def main():
     for dut, model, test, seed, expect in runs:
         log = f"logs/{dut}_{model}_{test}_s{seed}.log"
         t0 = time.time()
+        extra = f"+STIM_FILE={stim} +TIMEOUT_CYCLES=5000000" if test == "file" else ""
         res = sh(f"./build/{dut}/Vtb_top +TEST={test} +MODEL={model} +SEED={seed} "
-                 f"+NUM_ITEMS={args.items} +DUT_NAME={dut} +verilator+seed+{seed}", log)
+                 f"+NUM_ITEMS={args.items} +DUT_NAME={dut} +verilator+seed+{seed} {extra}", log)
         out = res.stdout
         r = parse_result(out)
         dt = time.time() - t0
@@ -98,9 +111,18 @@ def main():
             ok, note = False, "no FA_RESULT line (crash?)"
         elif expect == "PASS":
             ok = r["verdict"] == "PASS"
+            note = f"compared={r['compared']} cp={r['cp_pass']}/{int(r['cp_pass']) + int(r['cp_fail'])} cov={r['cov']}%"
             if dut == "fixed" and test == "regression":
                 ok &= float(r["cov"]) == 100.0      # coverage closure on the full regression
-            note = f"compared={r['compared']} cp={r['cp_pass']}/{int(r['cp_pass']) + int(r['cp_fail'])} cov={r['cov']}%"
+                covers = cover_counts(out)
+                cov0 = [k for k, v in covers.items() if v == 0]
+                ok &= bool(covers) and not cov0     # every cover property hit (non-vacuity)
+                note += f" covers={len(covers) - len(cov0)}/{len(covers)} hit"
+                if cov0:
+                    note += f"  UNHIT: {cov0}"
+        elif expect == "FAIL-UNEXPLAINED-0":
+            ok = r["verdict"] == "FAIL" and r["unexplained"] == "0" and r["x"] == "0"
+            note = f"compared={r['compared']} known={r['known']} ({r['bugs']}) unexplained={r['unexplained']}"
         else:
             sva = sva_counts(out)
             bugs = dict(b.split(":") for b in r["bugs"].split(","))

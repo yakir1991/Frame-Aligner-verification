@@ -136,6 +136,10 @@ endfunction
 // actually exercised, i.e. the checks are not vacuous).
 int unsigned fa_sva_cover_count[string];
 
+function automatic void fa_sva_cover_register(string name);
+  if (!fa_sva_cover_count.exists(name)) fa_sva_cover_count[name] = 0;
+endfunction
+
 function automatic void fa_sva_cover(string name);
   if (!fa_sva_cover_count.exists(name)) fa_sva_cover_count[name] = 0;
   fa_sva_cover_count[name]++;

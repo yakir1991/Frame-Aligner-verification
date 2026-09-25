@@ -14,6 +14,10 @@ Expected results (the script exits non-zero otherwise):
                  bug-emulating model (every deviation is a known defect)
 
 Usage:  python3 scripts/fuzz_rtl.py [--streams 2000] [--seed 1] [--keep DIR]
+                                   [--write-stim FILE [--stim-only]]
+  --write-stim FILE  also write the stimulus (one hex word per cycle, bit 8 =
+                     reset) for the SystemVerilog bench: +TEST=file +STIM_FILE=FILE
+  --stim-only        write the stimulus and stop (no Icarus needed)
 """
 import argparse
 import os
@@ -105,6 +109,8 @@ def main():
     ap.add_argument("--streams", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--keep", help="keep work files in this directory")
+    ap.add_argument("--write-stim", help="write the stimulus words to this file")
+    ap.add_argument("--stim-only", action="store_true", help="only write the stimulus")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -116,6 +122,12 @@ def main():
         words += s
         bounds.append((start, len(words)))
 
+    if args.write_stim:
+        with open(args.write_stim, "w") as f:
+            f.write("\n".join("%03x" % ((r << 8) | b) for r, b in words) + "\n")
+        print(f"wrote {len(words)} stimulus words to {args.write_stim}")
+        if args.stim_only:
+            return 0
     workdir = args.keep or tempfile.mkdtemp(prefix="fa_fuzz_")
     os.makedirs(workdir, exist_ok=True)
     spec = CausalModel().run(words)

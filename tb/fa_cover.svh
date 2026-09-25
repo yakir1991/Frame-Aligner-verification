@@ -13,11 +13,15 @@
 //==============================================================================
 `ifndef FA_COVER_SVH
 `define FA_COVER_SVH
+//  Every cover is registered with 0 hits at time 0, so a cover that is never
+//  hit still appears in the report (and sim/regress.py can require > 0).
 `ifdef VERILATOR
   `define FA_COVER(label, seq) \
+    initial fa_pkg::fa_sva_cover_register(`"label`"); \
     label: assert property (@(posedge clk) disable iff (reset) not (seq)) else fa_pkg::fa_sva_cover(`"label`");
 `else
   `define FA_COVER(label, seq) \
+    initial fa_pkg::fa_sva_cover_register(`"label`"); \
     label: cover property (@(posedge clk) disable iff (reset) (seq)) fa_pkg::fa_sva_cover(`"label`");
 `endif
 `endif
